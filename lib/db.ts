@@ -173,6 +173,27 @@ export async function createTransaction(
   const existing = await getTransactionByFt(data.ftNumber);
   if (existing) throw new Error("FT number already exists");
 
+  // Session may still hold an old user id (from JSON-file era). Only set
+  // cashier_id if that user actually exists in Supabase to avoid FK errors.
+  let cashierId: string | null = data.cashierId || null;
+  if (cashierId) {
+    const { data: cashierRow } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("id", cashierId)
+      .maybeSingle();
+    if (!cashierRow) {
+      // Try resolve by full name as fallback
+      const { data: byName } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .eq("full_name", data.cashierName)
+        .eq("role", "cashier")
+        .maybeSingle();
+      cashierId = byName ? String(byName.id) : null;
+    }
+  }
+
   const row = {
     id: uuidv4(),
     ft_number: data.ftNumber,
@@ -184,7 +205,7 @@ export async function createTransaction(
     sender_name: data.senderName || "",
     receiver_name: data.receiverName || "",
     image_data: data.imageData || null,
-    cashier_id: data.cashierId || null,
+    cashier_id: cashierId,
     cashier_name: data.cashierName,
     status: "completed",
     created_at: new Date().toISOString(),
