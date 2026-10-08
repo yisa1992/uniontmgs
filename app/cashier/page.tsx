@@ -213,7 +213,7 @@ export default function CashierPage() {
   function parseOcrText(text: string) {
     // Normalize OCR noise common on phone screenshots
     const cleaned = text
-      .replace(/\|/g, "I")
+      .replaceAll("|", "I")
       .replace(/\s+/g, " ")
       .replace(/\n+/g, "\n");
     const upper = cleaned.toUpperCase();
