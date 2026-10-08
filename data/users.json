@@ -1,0 +1,32 @@
+[
+  {
+    "id": "de64c4a6-08a3-4bd9-8e3f-b514fc0cf90c",
+    "username": "admin",
+    "passwordHash": "$2a$10$81OhnxW5Hke1lgIYbgFgz.cCAB9AKFqxNZz17vIYFFLvHZcDuCaju",
+    "fullName": "melala admin",
+    "role": "admin",
+    "active": true,
+    "createdAt": "2026-10-06T19:56:49.548Z",
+    "updatedAt": "2026-10-08T18:19:18.435Z"
+  },
+  {
+    "id": "0538814c-5085-4175-8e2d-164e74cda958",
+    "username": "auditor",
+    "passwordHash": "$2a$10$45DeXAQq7V7b3AVkmdWfkOhKVPHPzbUgzmmNfcLJxy7TC9eEN8tsG",
+    "fullName": "Union Auditor",
+    "role": "auditor",
+    "active": true,
+    "createdAt": "2026-10-06T19:56:49.695Z",
+    "updatedAt": "2026-10-06T19:56:49.695Z"
+  },
+  {
+    "id": "143c7050-acb3-4c44-b984-d5e5ee925b13",
+    "username": "cashier",
+    "passwordHash": "$2a$10$QYB2kR3MUkm3yGUbukaxAOUQKarwttowXl7s0kyw37ODq8Cc/jh6u",
+    "fullName": "Union Cashier",
+    "role": "cashier",
+    "active": true,
+    "createdAt": "2026-10-06T19:56:49.781Z",
+    "updatedAt": "2026-10-06T19:56:49.781Z"
+  }
+]

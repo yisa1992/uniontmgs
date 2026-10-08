@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession, requireRole } from "@/lib/auth";
+import { getUsers, createUser, updateUser } from "@/lib/db";
+
+export async function GET() {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const users = getUsers().map(({ passwordHash, ...u }) => u);
+  return NextResponse.json({ users });
+}
+
+export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const body = await req.json();
+    const { username, password, fullName, role } = body;
+    if (!username || !password || !fullName || !role) {
+      return NextResponse.json(
+        { error: "All fields required" },
+        { status: 400 }
+      );
+    }
+    if (!["admin", "auditor", "cashier"].includes(role)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+    const user = createUser({ username, password, fullName, role });
+    const { passwordHash, ...safe } = user;
+    return NextResponse.json({ user: safe }, { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to create user";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const body = await req.json();
+    const { id, ...data } = body;
+    if (!id) {
+      return NextResponse.json({ error: "User id required" }, { status: 400 });
+    }
+    const user = updateUser(id, data);
+    const { passwordHash, ...safe } = user;
+    return NextResponse.json({ user: safe });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to update user";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
