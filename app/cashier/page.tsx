@@ -146,15 +146,63 @@ export default function CashierPage() {
     runOcr(dataUrl);
   }
 
+  async function preprocessImage(dataUrl: string): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Upscale small images for better OCR
+        const scale = img.width < 1200 ? 2 : 1;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = imageData.data;
+        // Grayscale + contrast boost + mild threshold
+        for (let i = 0; i < d.length; i += 4) {
+          let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          // increase contrast
+          gray = (gray - 128) * 1.6 + 128;
+          gray = Math.max(0, Math.min(255, gray));
+          // soft threshold helps phone-screen photos
+          if (gray > 180) gray = 255;
+          else if (gray < 80) gray = 0;
+          d[i] = d[i + 1] = d[i + 2] = gray;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
   async function runOcr(dataUrl: string) {
     setScanning(true);
     setError("");
     try {
+      const processed = await preprocessImage(dataUrl);
       const Tesseract = (await import("tesseract.js")).default;
-      const result = await Tesseract.recognize(dataUrl, "eng", {
+      const result = await Tesseract.recognize(processed, "eng", {
         logger: () => {},
       });
-      parseOcrText(result.data.text);
+      const text = result.data.text || "";
+      console.log("OCR text:", text);
+      parseOcrText(text);
+      if (!text.trim()) {
+        setError("No text detected. Retake closer, avoid glare, and fill the screen with the receipt.");
+      } else {
+        const hasFt = /FT[A-Z0-9]{6,}/i.test(text);
+        const hasAmt = /ETB\s*[\d,]+/i.test(text) || /[\d,]+\.\d{2}/.test(text);
+        if (!hasFt && !hasAmt) {
+          setError("Could not read FT or amount. Move closer, reduce glare, and retake.");
+        }
+      }
     } catch {
       setError("OCR failed. Please retake a clearer photo of the QR / receipt.");
     } finally {
@@ -163,44 +211,90 @@ export default function CashierPage() {
   }
 
   function parseOcrText(text: string) {
+    // Normalize OCR noise common on phone screenshots
+    const cleaned = text
+      .replace(/[|]//g, "I")
+      .replace(/\s+/g, " ")
+      .replace(/\n+/g, "\n");
+    const upper = cleaned.toUpperCase();
+
+    // --- FT Number (CBE: ID: FT26282YJPPN or FT26282YJPPN) ---
     const ftPatterns = [
+      /(?:TRANSACTION\s*)?ID\s*[:.\-]?\s*(FT[A-Z0-9]{6,18})/i,
+      /\b(FT[A-Z0-9]{8,18})\b/i,
       /FT\s*[#:.\-]?\s*([A-Z0-9]{8,20})/i,
-      /(?:reference|ref|txn|transaction)\s*(?:no|number|#)?[:.\s]*([A-Z0-9]{8,20})/i,
-      /\b([A-Z]{2,3}\d{8,16})\b/,
+      /(?:reference|ref|txn|transaction)\s*(?:no|number|id|#)?[:.\s]*([A-Z0-9]{8,20})/i,
     ];
     for (const p of ftPatterns) {
-      const m = text.match(p);
+      const m = cleaned.match(p) || upper.match(p);
       if (m) {
-        setFtNumber(m[1].toUpperCase());
-        break;
-      }
-    }
-
-    const amountPatterns = [
-      /(?:total|amount|sum|etb|birr)\s*[:.\s]*([\d,]+\.?\d*)/i,
-      /([\d,]+\.\d{2})\s*(?:etb|birr)?/i,
-      /([\d,]{3,})\b/,
-    ];
-    for (const p of amountPatterns) {
-      const m = text.match(p);
-      if (m) {
-        const num = m[1].replace(/,/g, "");
-        if (!isNaN(parseFloat(num)) && parseFloat(num) > 0) {
-          setTotalAmount(num);
+        const ft = (m[1].startsWith("FT") || m[1].startsWith("ft")
+          ? m[1]
+          : "FT" + m[1]
+        ).toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (ft.length >= 8) {
+          setFtNumber(ft);
           break;
         }
       }
     }
 
-    const senderMatch = text.match(
-      /(?:from|sender|payer|account\s*name)\s*[:.\s]*([A-Za-z\s]{3,40})/i
-    );
-    if (senderMatch) setSenderName(senderMatch[1].trim());
+    // --- Amount (prefer transfer amount, then total debited) ---
+    // CBE: "ETB 2,200.00 has been debited" or "Total Amount Debited: ETB2201.20"
+    const amountPatterns = [
+      /ETB\s*([\d,]+\.?\d*)\s*has\s+been\s+debited/i,
+      /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*ETB\s*([\d,]+\.?\d*)/i,
+      /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*([\d,]+\.?\d*)/i,
+      /ETB\s*([\d,]+\.\d{2})\b/i,
+      /(?:total|amount|sum)\s*[:.\s]*([\d,]+\.?\d*)/i,
+      /([\d,]+\.\d{2})\s*(?:ETB|BIRR)?/i,
+    ];
+    for (const p of amountPatterns) {
+      const m = cleaned.match(p);
+      if (m) {
+        const num = m[1].replace(/,/g, "");
+        const val = parseFloat(num);
+        if (!isNaN(val) && val > 0) {
+          setTotalAmount(String(val));
+          break;
+        }
+      }
+    }
 
-    const receiverMatch = text.match(
-      /(?:to|receiver|beneficiary|credited)\s*[:.\s]*([A-Za-z\s]{3,40})/i
-    );
-    if (receiverMatch) setReceiverName(receiverMatch[1].trim());
+    // --- Sender (CBE: "debited from\nKalkidan Tafese Sefe") ---
+    const senderPatterns = [
+      /(?:has\s+been\s+)?debited\s+from\s+([A-Za-z][A-Za-z\s.'-]{2,50}?)(?:\s+ETB|\s+on\s|\s+for\s|\n|$)/i,
+      /(?:from|sender|payer)\s*[:.\s]+([A-Za-z][A-Za-z\s.'-]{2,40})/i,
+      /(?:account\s*name)\s*[:.\s]+([A-Za-z][A-Za-z\s.'-]{2,40})/i,
+    ];
+    for (const p of senderPatterns) {
+      const m = cleaned.match(p);
+      if (m) {
+        const name = m[1].replace(/\s+/g, " ").trim();
+        if (name.length >= 3 && !/^\d/.test(name)) {
+          setSenderName(name);
+          break;
+        }
+      }
+    }
+
+    // --- Receiver (CBE: "for Girma Eticha/girma Bar & Restaurant") ---
+    const receiverPatterns = [
+      /\bfor\s+([A-Za-z][A-Za-z0-9\s.&'\/-]{2,60}?)(?:\s+ETB-|\s+on\s|\s+with\s|\n|$)/i,
+      /(?:to|receiver|beneficiary|credited\s+to)\s*[:.\s]+([A-Za-z][A-Za-z0-9\s.&'\/-]{2,50})/i,
+    ];
+    for (const p of receiverPatterns) {
+      const m = cleaned.match(p);
+      if (m) {
+        let name = m[1].replace(/\s+/g, " ").trim();
+        // Drop trailing account-like tokens (ETB-3544)
+        name = name.replace(/\s*ETB-?\d+.*$/i, "").trim();
+        if (name.length >= 3) {
+          setReceiverName(name);
+          break;
+        }
+      }
+    }
   }
 
   function retakePhoto() {
