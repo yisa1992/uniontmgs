@@ -30,6 +30,8 @@ export default function CashierPage() {
   const [senderName, setSenderName] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [ftExists, setFtExists] = useState(false);
+  const [fieldsLocked, setFieldsLocked] = useState(true);
+  const scanLoopRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -143,7 +145,60 @@ export default function CashierPage() {
 
     stopCamera();
     setImagePreview(dataUrl);
-    runOcr(dataUrl);
+    processReceiptImage(dataUrl);
+  }
+
+  /** Decode QR from image data URL using jsQR */
+  async function decodeQrFromDataUrl(dataUrl: string): Promise<string | null> {
+    try {
+      const jsQR = (await import("jsqr")).default;
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = dataUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth",
+      });
+      return code?.data || null;
+    } catch (e) {
+      console.warn("QR decode failed", e);
+      return null;
+    }
+  }
+
+  /** Parse CBE QR payload (URL or text) into FT / hints */
+  function parseQrPayload(payload: string): { ft?: string; amount?: string; raw: string } {
+    const raw = payload.trim();
+    const out: { ft?: string; amount?: string; raw: string } = { raw };
+
+    // https://apps.cbe.com.et:100/?id=FT26140P01YB60536171
+    const idMatch = raw.match(/[?&]id=([A-Za-z0-9]+)/i);
+    if (idMatch) {
+      const id = idMatch[1];
+      const ftPart = id.match(/^(FT[A-Z0-9]{8,16})/i);
+      if (ftPart) out.ft = ftPart[1].toUpperCase();
+    }
+
+    // Plain FT in QR text
+    if (!out.ft) {
+      const ft = raw.match(/\b(FT[A-Z0-9]{8,16})\b/i);
+      if (ft) out.ft = ft[1].toUpperCase();
+    }
+
+    // Amount if present
+    const amt = raw.match(/(?:amount|amt|etb)[=:\s]*([\d,]+\.?\d*)/i);
+    if (amt) out.amount = amt[1].replace(/,/g, "");
+
+    return out;
   }
 
   async function preprocessImage(dataUrl: string): Promise<string> {
@@ -151,7 +206,6 @@ export default function CashierPage() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        // Upscale small images for better OCR
         const scale = img.width < 1200 ? 2 : 1;
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
@@ -163,15 +217,12 @@ export default function CashierPage() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const d = imageData.data;
-        // Grayscale + contrast boost + mild threshold
         for (let i = 0; i < d.length; i += 4) {
           let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          // increase contrast
-          gray = (gray - 128) * 1.6 + 128;
+          gray = (gray - 128) * 1.8 + 128;
           gray = Math.max(0, Math.min(255, gray));
-          // soft threshold helps phone-screen photos
-          if (gray > 180) gray = 255;
-          else if (gray < 80) gray = 0;
+          if (gray > 170) gray = 255;
+          else if (gray < 90) gray = 0;
           d[i] = d[i + 1] = d[i + 2] = gray;
         }
         ctx.putImageData(imageData, 0, 0);
@@ -182,10 +233,30 @@ export default function CashierPage() {
     });
   }
 
-  async function runOcr(dataUrl: string) {
+  async function processReceiptImage(dataUrl: string) {
     setScanning(true);
     setError("");
+    setFieldsLocked(true);
+    let filledFt = false;
+    let filledAmt = false;
+
     try {
+      // 1) QR first — most reliable for CBE receipts
+      const qrPayload = await decodeQrFromDataUrl(dataUrl);
+      if (qrPayload) {
+        console.log("QR payload:", qrPayload);
+        const parsed = parseQrPayload(qrPayload);
+        if (parsed.ft) {
+          setFtNumber(parsed.ft);
+          filledFt = true;
+        }
+        if (parsed.amount) {
+          setTotalAmount(parsed.amount);
+          filledAmt = true;
+        }
+      }
+
+      // 2) OCR for text fields (and anything QR missed)
       const processed = await preprocessImage(dataUrl);
       const Tesseract = (await import("tesseract.js")).default;
       const result = await Tesseract.recognize(processed, "eng", {
@@ -193,79 +264,91 @@ export default function CashierPage() {
       });
       const text = result.data.text || "";
       console.log("OCR text:", text);
-      parseOcrText(text);
-      if (!text.trim()) {
-        setError("No text detected. Retake closer, avoid glare, and fill the screen with the receipt.");
-      } else {
-        const hasFt = /FT[A-Z0-9]{6,}/i.test(text);
-        const hasAmt = /ETB\s*[\d,]+/i.test(text) || /[\d,]+\.\d{2}/.test(text);
-        if (!hasFt && !hasAmt) {
-          setError("Could not read FT or amount. Move closer, reduce glare, and retake.");
-        }
+      const before = { ft: filledFt, amt: filledAmt };
+      parseOcrText(text, { skipFt: filledFt, skipAmount: filledAmt });
+
+      // Heuristic: if OCR found FT in text
+      if (!filledFt && /FT[A-Z0-9]{6,}/i.test(text)) filledFt = true;
+      if (!filledAmt && /ETB\s*[\d,]+/i.test(text)) filledAmt = true;
+
+      if (!text.trim() && !qrPayload) {
+        setError(
+          "No QR or text detected. Point the camera at the QR code, avoid glare, or unlock fields to type."
+        );
+        setFieldsLocked(false);
+      } else if (!filledFt) {
+        setError(
+          "Could not read FT number automatically. Unlock fields below to enter it, or retake focusing on the QR / FT line."
+        );
+        setFieldsLocked(false);
       }
-    } catch {
-      setError("OCR failed. Please retake a clearer photo of the QR / receipt.");
+    } catch (e) {
+      console.error(e);
+      setError("Scan failed. Unlock fields to enter manually, or retake the photo.");
+      setFieldsLocked(false);
     } finally {
       setScanning(false);
     }
   }
 
-  function parseOcrText(text: string) {
-    // Normalize OCR noise common on phone screenshots
+  function parseOcrText(
+    text: string,
+    opts: { skipFt?: boolean; skipAmount?: boolean } = {}
+  ) {
     const cleaned = text
-      .replaceAll("|", "I")
+      .replace(/\|/g, "I")
+      .replace(/[“”]/g, '"')
       .replace(/\s+/g, " ")
       .replace(/\n+/g, "\n");
-    const upper = cleaned.toUpperCase();
 
-    // --- FT Number (CBE: ID: FT26282YJPPN or FT26282YJPPN) ---
-    const ftPatterns = [
-      /(?:TRANSACTION\s*)?ID\s*[:.\-]?\s*(FT[A-Z0-9]{6,18})/i,
-      /\b(FT[A-Z0-9]{8,18})\b/i,
-      /FT\s*[#:.\-]?\s*([A-Z0-9]{8,20})/i,
-      /(?:reference|ref|txn|transaction)\s*(?:no|number|id|#)?[:.\s]*([A-Z0-9]{8,20})/i,
-    ];
-    for (const p of ftPatterns) {
-      const m = cleaned.match(p) || upper.match(p);
-      if (m) {
-        const ft = (m[1].startsWith("FT") || m[1].startsWith("ft")
-          ? m[1]
-          : "FT" + m[1]
-        ).toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (ft.length >= 8) {
-          setFtNumber(ft);
-          break;
+    // --- FT Number ---
+    if (!opts.skipFt) {
+      const ftPatterns = [
+        /(?:TRANSACTION\s*)?ID\s*[:.\-]?\s*(FT[A-Z0-9]{6,18})/i,
+        /\b(FT[A-Z0-9]{8,18})\b/i,
+        /FT\s*[#:.\-]?\s*([A-Z0-9]{8,20})/i,
+        /(?:reference|ref|txn|transaction)\s*(?:no|number|id|#)?[:.\s]*(FT?[A-Z0-9]{8,20})/i,
+      ];
+      for (const p of ftPatterns) {
+        const m = cleaned.match(p);
+        if (m) {
+          let ft = m[1].toUpperCase().replace(/[^A-Z0-9]/g, "");
+          if (!ft.startsWith("FT")) ft = "FT" + ft;
+          if (ft.length >= 10) {
+            setFtNumber(ft);
+            break;
+          }
         }
       }
     }
 
-    // --- Amount (prefer transfer amount, then total debited) ---
-    // CBE: "ETB 2,200.00 has been debited" or "Total Amount Debited: ETB2201.20"
-    const amountPatterns = [
-      /ETB\s*([\d,]+\.?\d*)\s*has\s+been\s+debited/i,
-      /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*ETB\s*([\d,]+\.?\d*)/i,
-      /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*([\d,]+\.?\d*)/i,
-      /ETB\s*([\d,]+\.\d{2})\b/i,
-      /(?:total|amount|sum)\s*[:.\s]*([\d,]+\.?\d*)/i,
-      /([\d,]+\.\d{2})\s*(?:ETB|BIRR)?/i,
-    ];
-    for (const p of amountPatterns) {
-      const m = cleaned.match(p);
-      if (m) {
-        const num = m[1].replace(/,/g, "");
-        const val = parseFloat(num);
-        if (!isNaN(val) && val > 0) {
-          setTotalAmount(String(val));
-          break;
+    // --- Amount ---
+    if (!opts.skipAmount) {
+      const amountPatterns = [
+        /ETB\s*([\d,]+\.?\d*)\s*has\s+been\s+debited/i,
+        /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*ETB\s*([\d,]+\.?\d*)/i,
+        /(?:total\s+amount\s+debited|amount\s+debited)\s*[:.\s]*([\d,]+\.?\d*)/i,
+        /ETB\s*([\d,]+\.\d{2})\b/i,
+        /(?:total|amount|sum)\s*[:.\s]*([\d,]+\.?\d*)/i,
+        /([\d,]+\.\d{2})\s*(?:ETB|BIRR)?/i,
+      ];
+      for (const p of amountPatterns) {
+        const m = cleaned.match(p);
+        if (m) {
+          const num = m[1].replace(/,/g, "");
+          const val = parseFloat(num);
+          if (!isNaN(val) && val > 0) {
+            setTotalAmount(String(val));
+            break;
+          }
         }
       }
     }
 
-    // --- Sender (CBE: "debited from\nKalkidan Tafese Sefe") ---
+    // --- Sender ---
     const senderPatterns = [
       /(?:has\s+been\s+)?debited\s+from\s+([A-Za-z][A-Za-z\s.'-]{2,50}?)(?:\s+ETB|\s+on\s|\s+for\s|\n|$)/i,
       /(?:from|sender|payer)\s*[:.\s]+([A-Za-z][A-Za-z\s.'-]{2,40})/i,
-      /(?:account\s*name)\s*[:.\s]+([A-Za-z][A-Za-z\s.'-]{2,40})/i,
     ];
     for (const p of senderPatterns) {
       const m = cleaned.match(p);
@@ -278,7 +361,7 @@ export default function CashierPage() {
       }
     }
 
-    // --- Receiver (CBE: "for Girma Eticha/girma Bar & Restaurant") ---
+    // --- Receiver ---
     const receiverPatterns = [
       /\bfor\s+([A-Za-z][A-Za-z0-9\s.&'\/-]{2,60}?)(?:\s+ETB-|\s+on\s|\s+with\s|\n|$)/i,
       /(?:to|receiver|beneficiary|credited\s+to)\s*[:.\s]+([A-Za-z][A-Za-z0-9\s.&'\/-]{2,50})/i,
@@ -287,7 +370,6 @@ export default function CashierPage() {
       const m = cleaned.match(p);
       if (m) {
         let name = m[1].replace(/\s+/g, " ").trim();
-        // Drop trailing account-like tokens (ETB-3544)
         name = name.replace(/\s*ETB-?\d+.*$/i, "").trim();
         if (name.length >= 3) {
           setReceiverName(name);
@@ -303,7 +385,23 @@ export default function CashierPage() {
     setTotalAmount("");
     setSenderName("");
     setReceiverName("");
+    setFieldsLocked(true);
+    setError("");
     openCamera();
+  }
+
+  function onFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      stopCamera();
+      setImagePreview(dataUrl);
+      processReceiptImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -501,21 +599,43 @@ export default function CashierPage() {
               </div>
             )}
 
-            {/* Start camera button */}
+            {/* Start camera / upload */}
             {!cameraOpen && !imagePreview && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={openCamera}
-                style={{
-                  width: "100%",
-                  padding: "1.25rem",
-                  fontSize: "1.05rem",
-                  gap: "0.6rem",
-                }}
-              >
-                📷 Scan QR Code / Receipt Photo
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={openCamera}
+                  style={{
+                    width: "100%",
+                    padding: "1.25rem",
+                    fontSize: "1.05rem",
+                    gap: "0.6rem",
+                  }}
+                >
+                  📷 Scan QR Code / Receipt Photo
+                </button>
+                <label
+                  className="btn btn-outline"
+                  style={{
+                    width: "100%",
+                    padding: "0.85rem",
+                    textAlign: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  🖼️ Upload screenshot from gallery
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onFileUpload}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--muted)", textAlign: "center" }}>
+                  Tip: focus on the QR code, or upload a clear screenshot from the CBE app.
+                </p>
+              </div>
             )}
 
             {scanning && (
@@ -534,9 +654,21 @@ export default function CashierPage() {
 
           {/* Scanned fields — auto-filled by OCR, not editable */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
-              These fields are filled automatically from the scanned receipt / QR. They cannot be edited manually.
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", flex: 1 }}>
+                {fieldsLocked
+                  ? "Filled automatically from QR / OCR. Unlock only if the scan missed a value."
+                  : "Fields unlocked — type the values from the receipt, then submit."}
+              </p>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setFieldsLocked((v) => !v)}
+                style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem", whiteSpace: "nowrap" }}
+              >
+                {fieldsLocked ? "🔓 Unlock to edit" : "🔒 Lock fields"}
+              </button>
+            </div>
             <div
               style={{
                 display: "grid",
@@ -549,12 +681,13 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={ftNumber}
-                  readOnly
-                  placeholder="Auto-filled from scan"
+                  readOnly={fieldsLocked}
+                  onChange={(e) => setFtNumber(e.target.value.toUpperCase())}
+                  placeholder={fieldsLocked ? "Auto-filled from scan" : "e.g. FT26282YJPPN"}
                   required
                   style={{
-                    background: "#f1f5f9",
-                    cursor: "not-allowed",
+                    background: fieldsLocked ? "#f1f5f9" : undefined,
+                    cursor: fieldsLocked ? "not-allowed" : undefined,
                     ...(ftExists
                       ? { borderColor: "var(--danger)", background: "#fef2f2" }
                       : {}),
@@ -580,10 +713,11 @@ export default function CashierPage() {
                   step="0.01"
                   min="0"
                   value={totalAmount}
-                  readOnly
-                  placeholder="Auto-filled from scan"
+                  readOnly={fieldsLocked}
+                  onChange={(e) => setTotalAmount(e.target.value)}
+                  placeholder={fieldsLocked ? "Auto-filled from scan" : "0.00"}
                   required
-                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
+                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
                 />
               </div>
               <div>
@@ -591,9 +725,10 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={senderName}
-                  readOnly
-                  placeholder="Auto-filled from scan"
-                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
+                  readOnly={fieldsLocked}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder={fieldsLocked ? "Auto-filled from scan" : "Sender name"}
+                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
                 />
               </div>
               <div>
@@ -601,9 +736,10 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={receiverName}
-                  readOnly
-                  placeholder="Auto-filled from scan"
-                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
+                  readOnly={fieldsLocked}
+                  onChange={(e) => setReceiverName(e.target.value)}
+                  placeholder={fieldsLocked ? "Auto-filled from scan" : "Receiver name"}
+                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
                 />
               </div>
             </div>
