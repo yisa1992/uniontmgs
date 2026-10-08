@@ -156,7 +156,7 @@ export default function CashierPage() {
       });
       parseOcrText(result.data.text);
     } catch {
-      setError("OCR failed. Please enter FT number and amount manually.");
+      setError("OCR failed. Please retake a clearer photo of the QR / receipt.");
     } finally {
       setScanning(false);
     }
@@ -324,7 +324,10 @@ export default function CashierPage() {
         <form onSubmit={handleSubmit}>
           {/* Camera / photo section */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <label className="label">Receipt Photo (Camera)</label>
+            <label className="label">QR Code / Receipt Photo</label>
+            <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+              Capture the QR code or receipt. The image will be saved with the transaction.
+            </p>
 
             {cameraError && (
               <div className="alert alert-error" style={{ marginBottom: "0.75rem" }}>
@@ -417,7 +420,7 @@ export default function CashierPage() {
                   gap: "0.6rem",
                 }}
               >
-                📷 Open Camera &amp; Take Photo
+                📷 Scan QR Code / Receipt Photo
               </button>
             )}
 
@@ -435,8 +438,11 @@ export default function CashierPage() {
             )}
           </div>
 
-          {/* Scanned fields */}
+          {/* Scanned fields — auto-filled by OCR, not editable */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+              These fields are filled automatically from the scanned receipt / QR. They cannot be edited manually.
+            </p>
             <div
               style={{
                 display: "grid",
@@ -449,14 +455,16 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={ftNumber}
-                  onChange={(e) => setFtNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. FT1234567890"
+                  readOnly
+                  placeholder="Auto-filled from scan"
                   required
-                  style={
-                    ftExists
+                  style={{
+                    background: "#f1f5f9",
+                    cursor: "not-allowed",
+                    ...(ftExists
                       ? { borderColor: "var(--danger)", background: "#fef2f2" }
-                      : undefined
-                  }
+                      : {}),
+                  }}
                 />
                 {ftExists && (
                   <p
@@ -478,9 +486,10 @@ export default function CashierPage() {
                   step="0.01"
                   min="0"
                   value={totalAmount}
-                  onChange={(e) => setTotalAmount(e.target.value)}
-                  placeholder="0.00"
+                  readOnly
+                  placeholder="Auto-filled from scan"
                   required
+                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
                 />
               </div>
               <div>
@@ -488,8 +497,9 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="From OCR or manual"
+                  readOnly
+                  placeholder="Auto-filled from scan"
+                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
                 />
               </div>
               <div>
@@ -497,8 +507,9 @@ export default function CashierPage() {
                 <input
                   className="input"
                   value={receiverName}
-                  onChange={(e) => setReceiverName(e.target.value)}
-                  placeholder="From OCR or manual"
+                  readOnly
+                  placeholder="Auto-filled from scan"
+                  style={{ background: "#f1f5f9", cursor: "not-allowed" }}
                 />
               </div>
             </div>
@@ -596,7 +607,7 @@ export default function CashierPage() {
             type="submit"
             className="btn btn-success"
             style={{ width: "100%", padding: "0.85rem", fontSize: "1rem" }}
-            disabled={submitting || ftExists || !balanced || !ftNumber}
+            disabled={submitting || ftExists || !balanced || !ftNumber || !imagePreview}
           >
             {submitting ? "Saving…" : "Submit Transaction"}
           </button>
