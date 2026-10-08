@@ -7,7 +7,7 @@ export async function GET() {
   if (!requireRole(session, ["admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const users = getUsers().map(({ passwordHash, ...u }) => u);
+  const users = (await getUsers()).map(({ passwordHash, ...u }) => u);
   return NextResponse.json({ users });
 }
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!["admin", "auditor", "cashier"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
-    const user = createUser({ username, password, fullName, role });
+    const user = await createUser({ username, password, fullName, role });
     const { passwordHash, ...safe } = user;
     return NextResponse.json({ user: safe }, { status: 201 });
   } catch (e: unknown) {
@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "User id required" }, { status: 400 });
     }
-    const user = updateUser(id, data);
+    const user = await updateUser(id, data);
     const { passwordHash, ...safe } = user;
     return NextResponse.json({ user: safe });
   } catch (e: unknown) {

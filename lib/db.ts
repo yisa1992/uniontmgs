@@ -1,82 +1,119 @@
-import fs from "fs";
-import path from "path";
-import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
+import { supabaseAdmin } from "./supabase";
 import type { User, Transaction, Notification, Role } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
-const TRANSACTIONS_FILE = path.join(DATA_DIR, "transactions.json");
-const NOTIFICATIONS_FILE = path.join(DATA_DIR, "notifications.json");
+// ── Row mappers (DB snake_case ↔ app camelCase) ─────────
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+function mapUser(row: Record<string, unknown>): User {
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    passwordHash: String(row.password_hash),
+    fullName: String(row.full_name),
+    role: row.role as Role,
+    active: Boolean(row.active),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
 }
 
-function readJSON<T>(file: string, fallback: T): T {
-  ensureDataDir();
-  try {
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, "utf-8")) as T;
-    }
-  } catch {
-    // ignore corrupt files
-  }
-  return fallback;
+function mapTransaction(row: Record<string, unknown>): Transaction {
+  return {
+    id: String(row.id),
+    ftNumber: String(row.ft_number),
+    totalAmount: Number(row.total_amount),
+    restaurantAmount: Number(row.restaurant_amount ?? 0),
+    cafeAmount: Number(row.cafe_amount ?? 0),
+    butcheryAmount: Number(row.butchery_amount ?? 0),
+    tip: Number(row.tip ?? 0),
+    senderName: String(row.sender_name ?? ""),
+    receiverName: String(row.receiver_name ?? ""),
+    imageData: row.image_data ? String(row.image_data) : undefined,
+    cashierId: String(row.cashier_id ?? ""),
+    cashierName: String(row.cashier_name),
+    createdAt: String(row.created_at),
+    status: (row.status as Transaction["status"]) || "completed",
+  };
 }
 
-function writeJSON<T>(file: string, data: T) {
-  ensureDataDir();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+function mapNotification(row: Record<string, unknown>): Notification {
+  return {
+    id: String(row.id),
+    transactionId: String(row.transaction_id),
+    ftNumber: String(row.ft_number),
+    totalAmount: Number(row.total_amount),
+    cashierName: String(row.cashier_name),
+    message: String(row.message),
+    read: Boolean(row.read),
+    createdAt: String(row.created_at),
+  };
 }
 
 // ── Users ──────────────────────────────────────────────
 
-export function getUsers(): User[] {
-  return readJSON<User[]>(USERS_FILE, []);
+export async function getUsers(): Promise<User[]> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapUser);
 }
 
-export function getUserById(id: string): User | undefined {
-  return getUsers().find((u) => u.id === id);
+export async function getUserById(id: string): Promise<User | undefined> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapUser(data) : undefined;
 }
 
-export function getUserByUsername(username: string): User | undefined {
-  return getUsers().find(
-    (u) => u.username.toLowerCase() === username.toLowerCase()
-  );
+export async function getUserByUsername(
+  username: string
+): Promise<User | undefined> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .ilike("username", username)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapUser(data) : undefined;
 }
 
-export function createUser(data: {
+export async function createUser(data: {
   username: string;
   password: string;
   fullName: string;
   role: Role;
-}): User {
-  const users = getUsers();
-  if (
-    users.some((u) => u.username.toLowerCase() === data.username.toLowerCase())
-  ) {
-    throw new Error("Username already exists");
-  }
+}): Promise<User> {
+  const existing = await getUserByUsername(data.username);
+  if (existing) throw new Error("Username already exists");
+
   const now = new Date().toISOString();
-  const user: User = {
+  const row = {
     id: uuidv4(),
     username: data.username,
-    passwordHash: bcrypt.hashSync(data.password, 10),
-    fullName: data.fullName,
+    password_hash: bcrypt.hashSync(data.password, 10),
+    full_name: data.fullName,
     role: data.role,
     active: true,
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
-  users.push(user);
-  writeJSON(USERS_FILE, users);
-  return user;
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("users")
+    .insert(row)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapUser(inserted);
 }
 
-export function updateUser(
+export async function updateUser(
   id: string,
   data: Partial<{
     fullName: string;
@@ -84,19 +121,23 @@ export function updateUser(
     active: boolean;
     password: string;
   }>
-): User {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx === -1) throw new Error("User not found");
-  const user = users[idx];
-  if (data.fullName !== undefined) user.fullName = data.fullName;
-  if (data.role !== undefined) user.role = data.role;
-  if (data.active !== undefined) user.active = data.active;
-  if (data.password) user.passwordHash = bcrypt.hashSync(data.password, 10);
-  user.updatedAt = new Date().toISOString();
-  users[idx] = user;
-  writeJSON(USERS_FILE, users);
-  return user;
+): Promise<User> {
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (data.fullName !== undefined) patch.full_name = data.fullName;
+  if (data.role !== undefined) patch.role = data.role;
+  if (data.active !== undefined) patch.active = data.active;
+  if (data.password) patch.password_hash = bcrypt.hashSync(data.password, 10);
+
+  const { data: updated, error } = await supabaseAdmin
+    .from("users")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapUser(updated);
 }
 
 export function verifyPassword(user: User, password: string): boolean {
@@ -105,35 +146,60 @@ export function verifyPassword(user: User, password: string): boolean {
 
 // ── Transactions ───────────────────────────────────────
 
-export function getTransactions(): Transaction[] {
-  return readJSON<Transaction[]>(TRANSACTIONS_FILE, []).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+export async function getTransactions(): Promise<Transaction[]> {
+  const { data, error } = await supabaseAdmin
+    .from("transactions")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapTransaction);
 }
 
-export function getTransactionByFt(ftNumber: string): Transaction | undefined {
-  return getTransactions().find(
-    (t) => t.ftNumber.toLowerCase() === ftNumber.toLowerCase()
-  );
+export async function getTransactionByFt(
+  ftNumber: string
+): Promise<Transaction | undefined> {
+  const { data, error } = await supabaseAdmin
+    .from("transactions")
+    .select("*")
+    .ilike("ft_number", ftNumber)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapTransaction(data) : undefined;
 }
 
-export function createTransaction(
+export async function createTransaction(
   data: Omit<Transaction, "id" | "createdAt" | "status">
-): Transaction {
-  if (getTransactionByFt(data.ftNumber)) {
-    throw new Error("FT number already exists");
-  }
-  const tx: Transaction = {
-    ...data,
-    id: uuidv4(),
-    createdAt: new Date().toISOString(),
-    status: "completed",
-  };
-  const txs = getTransactions();
-  txs.unshift(tx);
-  writeJSON(TRANSACTIONS_FILE, txs);
+): Promise<Transaction> {
+  const existing = await getTransactionByFt(data.ftNumber);
+  if (existing) throw new Error("FT number already exists");
 
-  createNotification({
+  const row = {
+    id: uuidv4(),
+    ft_number: data.ftNumber,
+    total_amount: data.totalAmount,
+    restaurant_amount: data.restaurantAmount,
+    cafe_amount: data.cafeAmount,
+    butchery_amount: data.butcheryAmount,
+    tip: data.tip,
+    sender_name: data.senderName || "",
+    receiver_name: data.receiverName || "",
+    image_data: data.imageData || null,
+    cashier_id: data.cashierId || null,
+    cashier_name: data.cashierName,
+    status: "completed",
+    created_at: new Date().toISOString(),
+  };
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("transactions")
+    .insert(row)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const tx = mapTransaction(inserted);
+
+  await createNotification({
     transactionId: tx.id,
     ftNumber: tx.ftNumber,
     totalAmount: tx.totalAmount,
@@ -146,67 +212,80 @@ export function createTransaction(
 
 // ── Notifications ──────────────────────────────────────
 
-export function getNotifications(): Notification[] {
-  return readJSON<Notification[]>(NOTIFICATIONS_FILE, []).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+export async function getNotifications(): Promise<Notification[]> {
+  const { data, error } = await supabaseAdmin
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapNotification);
 }
 
-export function createNotification(data: {
+export async function createNotification(data: {
   transactionId: string;
   ftNumber: string;
   totalAmount: number;
   cashierName: string;
   message: string;
-}): Notification {
-  const n: Notification = {
+}): Promise<Notification> {
+  const row = {
     id: uuidv4(),
-    ...data,
+    transaction_id: data.transactionId,
+    ft_number: data.ftNumber,
+    total_amount: data.totalAmount,
+    cashier_name: data.cashierName,
+    message: data.message,
     read: false,
-    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
-  const list = getNotifications();
-  list.unshift(n);
-  writeJSON(NOTIFICATIONS_FILE, list);
-  return n;
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("notifications")
+    .insert(row)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapNotification(inserted);
 }
 
-export function markNotificationRead(id: string): void {
-  const list = getNotifications();
-  const idx = list.findIndex((n) => n.id === id);
-  if (idx !== -1) {
-    list[idx].read = true;
-    writeJSON(NOTIFICATIONS_FILE, list);
-  }
+export async function markNotificationRead(id: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("notifications")
+    .update({ read: true })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
-export function markAllNotificationsRead(): void {
-  const list = getNotifications().map((n) => ({ ...n, read: true }));
-  writeJSON(NOTIFICATIONS_FILE, list);
+export async function markAllNotificationsRead(): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("notifications")
+    .update({ read: true })
+    .eq("read", false);
+  if (error) throw new Error(error.message);
 }
 
-// ── Seed ───────────────────────────────────────────────
+// ── Seed demo users if empty ───────────────────────────
 
-export function seedIfEmpty() {
-  const users = getUsers();
-  if (users.length === 0) {
-    createUser({
-      username: "admin",
-      password: "admin123",
-      fullName: "Union Admin",
-      role: "admin",
-    });
-    createUser({
-      username: "auditor",
-      password: "auditor123",
-      fullName: "Union Auditor",
-      role: "auditor",
-    });
-    createUser({
-      username: "cashier",
-      password: "cashier123",
-      fullName: "Union Cashier",
-      role: "cashier",
-    });
-  }
+export async function seedIfEmpty(): Promise<void> {
+  const users = await getUsers();
+  if (users.length > 0) return;
+
+  await createUser({
+    username: "admin",
+    password: "admin123",
+    fullName: "Union Admin",
+    role: "admin",
+  });
+  await createUser({
+    username: "auditor",
+    password: "auditor123",
+    fullName: "Union Auditor",
+    role: "auditor",
+  });
+  await createUser({
+    username: "cashier",
+    password: "cashier123",
+    fullName: "Union Cashier",
+    role: "cashier",
+  });
 }

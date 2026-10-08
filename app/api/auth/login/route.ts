@@ -8,7 +8,7 @@ import { createToken, setSessionCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    seedIfEmpty();
+    await seedIfEmpty();
     const { username, password } = await req.json();
     if (!username || !password) {
       return NextResponse.json(
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const user = getUserByUsername(username);
+    const user = await getUserByUsername(username);
     if (!user || !user.active) {
       return NextResponse.json(
         { error: "Invalid credentials" },

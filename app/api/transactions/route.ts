@@ -14,13 +14,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ft = searchParams.get("ft");
   if (ft) {
-    const existing = getTransactionByFt(ft);
+    const existing = await getTransactionByFt(ft);
     return NextResponse.json({
       exists: !!existing,
       transaction: existing || null,
     });
   }
-  let txs = getTransactions();
+  let txs = await getTransactions();
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const cashierId = searchParams.get("cashierId");
@@ -71,14 +71,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (getTransactionByFt(String(ftNumber))) {
+    if (await getTransactionByFt(String(ftNumber))) {
       return NextResponse.json(
         { error: "FT number already exists in the system" },
         { status: 409 }
       );
     }
 
-    const tx = createTransaction({
+    // Avoid storing huge images that blow request/DB limits
+    let safeImage: string | undefined = imageData || undefined;
+    if (safeImage && safeImage.length > 1_500_000) {
+      safeImage = undefined;
+    }
+
+    const tx = await createTransaction({
       ftNumber: String(ftNumber).trim(),
       totalAmount: total,
       restaurantAmount: r,
@@ -87,7 +93,7 @@ export async function POST(req: NextRequest) {
       tip: t,
       senderName: senderName || "",
       receiverName: receiverName || "",
-      imageData: imageData || undefined,
+      imageData: safeImage,
       cashierId: session!.id,
       cashierName: session!.fullName,
     });
