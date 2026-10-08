@@ -404,6 +404,33 @@ export default function CashierPage() {
     e.target.value = "";
   }
 
+  /** Shrink receipt image so POST body stays under Vercel limits (~4MB) */
+  async function compressImageForUpload(dataUrl: string, maxSide = 1280, quality = 0.72): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxSide || height > maxSide) {
+          const ratio = Math.min(maxSide / width, maxSide / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -412,11 +439,19 @@ export default function CashierPage() {
       setError("FT number already exists in the system");
       return;
     }
+    if (!ftNumber.trim()) {
+      setError("FT number is required");
+      return;
+    }
     const total = parseFloat(totalAmount) || 0;
     const r = parseFloat(restaurant) || 0;
     const c = parseFloat(cafe) || 0;
     const b = parseFloat(butchery) || 0;
     const t = parseFloat(tip) || 0;
+    if (total <= 0) {
+      setError("Total amount is required");
+      return;
+    }
     if (Math.abs(r + c + b + t - total) > 0.01) {
       setError(
         `Sum (${(r + c + b + t).toFixed(2)}) must equal scanned amount (${total.toFixed(2)})`
@@ -425,29 +460,57 @@ export default function CashierPage() {
     }
     setSubmitting(true);
     try {
+      let imagePayload: string | undefined = undefined;
+      if (imagePreview) {
+        imagePayload = await compressImageForUpload(imagePreview);
+        // If still huge (>2.5MB base64), drop image rather than fail the save
+        if (imagePayload.length > 2.5 * 1024 * 1024) {
+          imagePayload = await compressImageForUpload(imagePreview, 800, 0.55);
+        }
+        if (imagePayload.length > 2.5 * 1024 * 1024) {
+          console.warn("Image still too large, saving without image");
+          imagePayload = undefined;
+        }
+      }
+
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ftNumber,
+          ftNumber: ftNumber.trim(),
           totalAmount: total,
           restaurantAmount: r,
           cafeAmount: c,
           butcheryAmount: b,
           tip: t,
-          senderName,
-          receiverName,
-          imageData: imagePreview || undefined,
+          senderName: senderName || "",
+          receiverName: receiverName || "",
+          imageData: imagePayload,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to save transaction");
+
+      let data: { error?: string; transaction?: { ftNumber: string } } = {};
+      try {
+        data = await res.json();
+      } catch {
+        // non-JSON response (often body size / server crash)
+        setError(
+          res.status === 413 || res.status === 500
+            ? "Server rejected the request (image may be too large). Try again — photo will be compressed more."
+            : `Server error (${res.status}). Please try again.`
+        );
         setSubmitting(false);
         return;
       }
+
+      if (!res.ok) {
+        setError(data.error || `Failed to save (${res.status})`);
+        setSubmitting(false);
+        return;
+      }
+
       setSuccess(
-        `Transaction saved! FT: ${data.transaction.ftNumber} — Auditor has been notified.`
+        `Transaction saved! FT: ${data.transaction?.ftNumber || ftNumber} — Auditor has been notified.`
       );
       setFtNumber("");
       setTotalAmount("");
@@ -459,9 +522,13 @@ export default function CashierPage() {
       setReceiverName("");
       setImagePreview(null);
       setFtExists(false);
+      setFieldsLocked(true);
       stopCamera();
-    } catch {
-      setError("Network error");
+    } catch (err) {
+      console.error("Submit error:", err);
+      setError(
+        "Network error — check your connection, or the receipt image is too large. Unlock, clear photo with Retake, and try again without a photo if needed."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -837,7 +904,7 @@ export default function CashierPage() {
             type="submit"
             className="btn btn-success"
             style={{ width: "100%", padding: "0.85rem", fontSize: "1rem" }}
-            disabled={submitting || ftExists || !balanced || !ftNumber || !imagePreview}
+            disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount}
           >
             {submitting ? "Saving…" : "Submit Transaction"}
           </button>
