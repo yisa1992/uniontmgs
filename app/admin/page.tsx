@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import type { SessionUser, Transaction } from "@/lib/types";
+import type { Transaction } from "@/lib/types";
 
-export default function AdminReportsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(null);
+export default function AdminDashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState("");
@@ -33,26 +29,10 @@ export default function AdminReportsPage() {
     }
   }, [from, to]);
 
+  // Auth is handled by admin/layout.tsx (Supabase). Do not redirect to /login here.
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => {
-        if (!r.ok) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((d) => {
-        if (d?.user) {
-          if (d.user.role !== "admin") {
-            router.push("/");
-            return;
-          }
-          setUser(d.user);
-          load();
-        }
-      });
-  }, [router, load]);
+    load();
+  }, [load]);
 
   async function deleteTx(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -69,7 +49,7 @@ export default function AdminReportsPage() {
     }
   }
 
-    const filtered = transactions.filter((t) => {
+  const filtered = transactions.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
     const extra = t as { tableNumber?: string; waiterName?: string };
@@ -95,7 +75,7 @@ export default function AdminReportsPage() {
     { total: 0, restaurant: 0, cafe: 0, butchery: 0, tip: 0, count: 0 }
   );
 
-  if (!user) {
+  if (loading && transactions.length === 0) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)" }}>
         Loading…
@@ -105,10 +85,9 @@ export default function AdminReportsPage() {
 
   return (
     <div>
-      <Navbar user={user} />
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
         <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
-          Transaction Reports
+          Dashboard — Transaction Reports
         </h1>
         <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
           View, filter and analyze all transactions

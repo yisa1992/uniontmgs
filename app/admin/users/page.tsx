@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import type { SessionUser, Role } from "@/lib/types";
+import type { Role } from "@/lib/types";
 
 interface UserRow {
   id: string;
@@ -16,8 +14,6 @@ interface UserRow {
 }
 
 export default function AdminUsersPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -47,26 +43,10 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Auth is handled by admin/layout.tsx (Supabase). Do not redirect to /login here.
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => {
-        if (!r.ok) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((d) => {
-        if (d?.user) {
-          if (d.user.role !== "admin") {
-            router.push("/");
-            return;
-          }
-          setUser(d.user);
-          loadUsers();
-        }
-      });
-  }, [router]);
+    loadUsers();
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -140,7 +120,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  if (!user) {
+  if (loading && users.length === 0) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)" }}>
         Loading…
@@ -150,7 +130,6 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <Navbar user={user} />
       <main style={{ maxWidth: 1000, margin: "0 auto", padding: "1.5rem" }}>
         <div
           style={{
