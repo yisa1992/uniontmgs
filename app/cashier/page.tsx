@@ -600,49 +600,60 @@ export default function CashierPage() {
   const balanced = Math.abs(sum - total) < 0.01 && total > 0;
 
   return (
-    <div>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #f8fafc 0%, #f0fdf4 40%, #f8fafc 100%)" }}>
       <Navbar user={user} />
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
-          New Transaction
-        </h1>
-        <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
-          Take a photo of the receipt with the camera — FT number &amp; amount are scanned automatically.
-        </p>
+      <main style={{ maxWidth: 920, margin: "0 auto", padding: "1.75rem 1.25rem 3rem" }}>
+        {/* Attractive header */}
+        <div
+          style={{
+            marginBottom: "1.75rem",
+            padding: "1.5rem 1.75rem",
+            borderRadius: 20,
+            background: "linear-gradient(135deg, #065f46 0%, #047857 40%, #0d9488 100%)",
+            color: "white",
+            boxShadow: "0 10px 40px rgba(6, 95, 70, 0.25)",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ position: "absolute", top: -30, right: -20, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+          <div style={{ position: "absolute", bottom: -40, left: 40, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+          <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, letterSpacing: "-0.02em", position: "relative" }}>
+            📸 New Transaction
+          </h1>
+          <p style={{ margin: "0.4rem 0 0", opacity: 0.9, fontSize: "0.95rem", position: "relative" }}>
+            Scan the receipt QR or photo — everything fills in automatically. Just confirm the split &amp; submit.
+          </p>
+        </div>
 
         {error && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+          <div className="alert alert-error" style={{ marginBottom: "1rem", borderRadius: 12 }}>
             {error}
           </div>
         )}
         {success && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+          <div className="alert alert-success" style={{ marginBottom: "1rem", borderRadius: 12 }}>
             {success}
           </div>
         )}
 
-                <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit}>
+          {/* Camera / photo section */}
           <div
+            className="card"
             style={{
-              display: "flex",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-              marginBottom: "1rem",
-              fontSize: "0.75rem",
-              fontWeight: 600,
+              padding: "1.5rem",
+              marginBottom: "1.25rem",
+              borderRadius: 16,
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.04)",
             }}
           >
-            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: imagePreview ? "#d1fae5" : "#e2e8f0", color: imagePreview ? "#065f46" : "#475569" }}>1 · Scan</span>
-            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: (tableNumber && waiterId) ? "#d1fae5" : "#e2e8f0", color: (tableNumber && waiterId) ? "#065f46" : "#475569" }}>2 · Table & Waiter</span>
-            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: balanced && total > 0 ? "#d1fae5" : "#e2e8f0", color: balanced && total > 0 ? "#065f46" : "#475569" }}>3 · Split</span>
-            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: "#e2e8f0", color: "#475569" }}>4 · Submit</span>
-          </div>
-
-          {/* Camera / photo section */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <label className="label">① Scan Receipt / QR Code</label>
-            <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-              Capture the QR code or receipt. The image will be saved with the transaction.
+            <label className="label" style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a" }}>
+              📷 QR Code / Receipt Photo
+            </label>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+              Capture the QR code or receipt. The image is saved with the transaction and used for auto-fill.
             </p>
 
             {cameraError && (
@@ -771,110 +782,156 @@ export default function CashierPage() {
                   fontWeight: 600,
                 }}
               >
-                🔍 Scanning… reading QR &amp; text. Keep this screen open.
+                Scanning receipt with OCR… please wait
               </p>
             )}
           </div>
 
-          {/* Scanned fields — auto-filled by OCR, not editable */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
-              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", flex: 1 }}>
-                {fieldsLocked
-                  ? "Filled automatically from QR / OCR. If FT is missing in the picture, unlock and type the transaction number."
-                  : "Fields unlocked — type the FT or transaction number from the receipt, then submit."}
-              </p>
+          {/* Scanned summary — FT / names auto-filled in background from QR/OCR (no input boxes) */}
+          <div
+            className="card"
+            style={{
+              padding: "1.5rem",
+              marginBottom: "1.25rem",
+              background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0f9ff 100%)",
+              border: "1px solid #a7f3d0",
+              borderRadius: 16,
+              boxShadow: "0 4px 20px rgba(16, 185, 129, 0.08)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "#065f46" }}>
+                  ✨ Scanned Details
+                </h3>
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#047857" }}>
+                  FT number, sender &amp; receiver are captured automatically from the photo — no need to type them.
+                </p>
+              </div>
               <button
                 type="button"
                 className="btn btn-outline"
                 onClick={() => setFieldsLocked((v) => !v)}
-                style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem", whiteSpace: "nowrap" }}
+                style={{
+                  fontSize: "0.8rem",
+                  padding: "0.4rem 0.85rem",
+                  whiteSpace: "nowrap",
+                  borderRadius: 10,
+                  borderColor: "#6ee7b7",
+                  color: "#065f46",
+                }}
               >
-                {fieldsLocked ? "🔓 Unlock to edit" : "🔒 Lock fields"}
+                {fieldsLocked ? "🔓 Unlock amount" : "🔒 Lock amount"}
               </button>
             </div>
+
+            {/* FT status badge (read-only display, not an input) */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                marginBottom: "1.25rem",
               }}
             >
-              <div>
-                <label className="label">FT / Transaction Number *</label>
-                <input
-                  className="input"
-                  value={ftNumber}
-                  readOnly={fieldsLocked}
-                  onChange={(e) => setFtNumber(e.target.value.toUpperCase())}
-                  placeholder={fieldsLocked ? "Auto-filled from scan" : "e.g. FT26282YJPPN or transaction number"}
-                  required
+              <div
+                style={{
+                  flex: "1 1 180px",
+                  padding: "0.85rem 1rem",
+                  borderRadius: 12,
+                  background: ftNumber
+                    ? ftExists
+                      ? "linear-gradient(135deg, #fef2f2, #fee2e2)"
+                      : "linear-gradient(135deg, #ecfdf5, #d1fae5)"
+                    : "linear-gradient(135deg, #f8fafc, #f1f5f9)",
+                  border: `1px solid ${ftNumber ? (ftExists ? "#fca5a5" : "#6ee7b7") : "#e2e8f0"}`,
+                }}
+              >
+                <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", marginBottom: 4 }}>
+                  FT / Transaction #
+                </div>
+                <div
                   style={{
-                    background: fieldsLocked ? "#f1f5f9" : undefined,
-                    cursor: fieldsLocked ? "not-allowed" : undefined,
-                    ...(ftExists
-                      ? { borderColor: "var(--danger)", background: "#fef2f2" }
-                      : {}),
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    fontFamily: "ui-monospace, monospace",
+                    color: ftExists ? "#b91c1c" : ftNumber ? "#065f46" : "#94a3b8",
+                    letterSpacing: "0.02em",
                   }}
-                />
+                >
+                  {ftNumber || "Waiting for scan…"}
+                </div>
                 {ftExists && (
-                  <p
-                    style={{
-                      color: "var(--danger)",
-                      fontSize: "0.8rem",
-                      margin: "0.35rem 0 0",
-                    }}
-                  >
-                    This FT number already exists
+                  <p style={{ color: "#b91c1c", fontSize: "0.75rem", margin: "0.35rem 0 0", fontWeight: 600 }}>
+                    ⚠ This FT already exists
                   </p>
                 )}
               </div>
-              <div>
-                <label className="label">Scanned Total Amount (ETB) *</label>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={totalAmount}
-                  readOnly={fieldsLocked}
-                  onChange={(e) => setTotalAmount(e.target.value)}
-                  placeholder={fieldsLocked ? "Auto-filled from scan" : "0.00"}
-                  required
-                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
-                />
-              </div>
-              <div>
-                <label className="label">Sender Name</label>
-                <input
-                  className="input"
-                  value={senderName}
-                  readOnly={fieldsLocked}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder={fieldsLocked ? "Auto-filled from scan" : "Sender name"}
-                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
-                />
-              </div>
-              <div>
-                <label className="label">Receiver Account Name</label>
-                <input
-                  className="input"
-                  value={receiverName}
-                  readOnly={fieldsLocked}
-                  onChange={(e) => setReceiverName(e.target.value)}
-                  placeholder={fieldsLocked ? "Auto-filled from scan" : "Receiver name"}
-                  style={{ background: fieldsLocked ? "#f1f5f9" : undefined, cursor: fieldsLocked ? "not-allowed" : undefined }}
-                />
-              </div>
+
+              {(senderName || receiverName) && (
+                <div
+                  style={{
+                    flex: "1 1 180px",
+                    padding: "0.85rem 1rem",
+                    borderRadius: 12,
+                    background: "linear-gradient(135deg, #eff6ff, #e0f2fe)",
+                    border: "1px solid #93c5fd",
+                  }}
+                >
+                  <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", marginBottom: 4 }}>
+                    Parties
+                  </div>
+                  <div style={{ fontSize: "0.9rem", color: "#1e40af", lineHeight: 1.4 }}>
+                    {senderName && <div><span style={{ opacity: 0.7 }}>From:</span> <strong>{senderName}</strong></div>}
+                    {receiverName && <div><span style={{ opacity: 0.7 }}>To:</span> <strong>{receiverName}</strong></div>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Only Total Amount remains as editable input */}
+            <div>
+              <label className="label" style={{ color: "#065f46", fontWeight: 600 }}>
+                Total Amount (ETB) *
+              </label>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                min="0"
+                value={totalAmount}
+                readOnly={fieldsLocked}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                placeholder={fieldsLocked ? "Auto-filled from scan" : "0.00"}
+                required
+                style={{
+                  background: fieldsLocked ? "#f0fdf4" : "#fff",
+                  cursor: fieldsLocked ? "not-allowed" : undefined,
+                  borderRadius: 12,
+                  border: "1px solid #6ee7b7",
+                  fontSize: "1.15rem",
+                  fontWeight: 700,
+                  padding: "0.85rem 1rem",
+                  color: "#065f46",
+                }}
+              />
             </div>
           </div>
 
-          {/* Table & Waiter — large touch-friendly */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem", border: "2px solid #0ea5e9" }}>
-            <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem" }}>② Table &amp; Waiter</h3>
-            <p style={{ margin: "0 0 1rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-              Required before you can save the transaction.
-            </p>
+          {/* Table & Waiter */}
+          <div
+            className="card"
+            style={{
+              padding: "1.5rem",
+              marginBottom: "1.25rem",
+              borderRadius: 16,
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.04)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1.15rem", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+              🪑 Table &amp; Waiter
+            </h3>
             <div
               style={{
                 display: "grid",
@@ -890,8 +947,7 @@ export default function CashierPage() {
                   onChange={(e) => setTableNumber(e.target.value)}
                   placeholder="e.g. 12"
                   required
-                  inputMode="numeric"
-                  style={{ fontSize: "1.15rem", padding: "0.85rem 1rem", fontWeight: 600 }}
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 />
               </div>
               <div>
@@ -906,7 +962,7 @@ export default function CashierPage() {
                     setWaiterName(w?.fullName || "");
                   }}
                   required
-                  style={{ fontSize: "1.05rem", padding: "0.85rem 1rem" }}
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 >
                   <option value="">Select waiter…</option>
                   {waiters.map((w) => (
@@ -916,8 +972,8 @@ export default function CashierPage() {
                   ))}
                 </select>
                 {waiters.length === 0 && (
-                  <p style={{ fontSize: "0.85rem", color: "#dc2626", margin: "0.5rem 0 0", fontWeight: 500 }}>
-                    No waiters yet. Ask Admin to register a user with role <strong>Waiter</strong> (Admin → Users → Add).
+                  <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.35rem 0 0" }}>
+                    No waiters found. Admin must register users with role &quot;waiter&quot;.
                   </p>
                 )}
               </div>
@@ -925,9 +981,19 @@ export default function CashierPage() {
           </div>
 
           {/* Split amounts */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem" }}>③ Split Amounts</h3>
-            <p style={{ margin: "0 0 1rem", fontSize: "0.8rem", color: "var(--muted)" }}>Restaurant + Cafe + Butchery + Tip must equal the scanned total.</p>
+          <div
+            className="card"
+            style={{
+              padding: "1.5rem",
+              marginBottom: "1.5rem",
+              borderRadius: 16,
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.04)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1.15rem", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+              💰 Split Amounts
+            </h3>
             <div
               style={{
                 display: "grid",
@@ -945,6 +1011,7 @@ export default function CashierPage() {
                   value={restaurant}
                   onChange={(e) => setRestaurant(e.target.value)}
                   placeholder="0.00"
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 />
               </div>
               <div>
@@ -957,6 +1024,7 @@ export default function CashierPage() {
                   value={cafe}
                   onChange={(e) => setCafe(e.target.value)}
                   placeholder="0.00"
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 />
               </div>
               <div>
@@ -969,6 +1037,7 @@ export default function CashierPage() {
                   value={butchery}
                   onChange={(e) => setButchery(e.target.value)}
                   placeholder="0.00"
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 />
               </div>
               <div>
@@ -980,22 +1049,25 @@ export default function CashierPage() {
                   value={tip}
                   onChange={(e) => setTip(e.target.value)}
                   placeholder="0.00"
-                  style={{ background: "#f8fafc" }}
+                  style={{ background: "#f8fafc", borderRadius: 12, padding: "0.75rem 1rem" }}
                 />
               </div>
             </div>
 
             <div
               style={{
-                marginTop: "1.25rem",
-                padding: "0.875rem 1rem",
-                borderRadius: 8,
-                background: balanced ? "#ecfdf5" : "#fef3c7",
-                border: `1px solid ${balanced ? "#a7f3d0" : "#fcd34d"}`,
+                marginTop: "1.35rem",
+                padding: "1rem 1.15rem",
+                borderRadius: 12,
+                background: balanced
+                  ? "linear-gradient(135deg, #ecfdf5, #d1fae5)"
+                  : "linear-gradient(135deg, #fffbeb, #fef3c7)",
+                border: `1px solid ${balanced ? "#6ee7b7" : "#fcd34d"}`,
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                fontSize: "0.9rem",
+                fontSize: "0.95rem",
+                boxShadow: balanced ? "0 2px 12px rgba(16,185,129,0.12)" : "none",
               }}
             >
               <span>
@@ -1004,8 +1076,9 @@ export default function CashierPage() {
               </span>
               <span
                 style={{
-                  fontWeight: 600,
-                  color: balanced ? "var(--success)" : "var(--warning)",
+                  fontWeight: 700,
+                  color: balanced ? "#065f46" : "#b45309",
+                  fontSize: "0.9rem",
                 }}
               >
                 {balanced ? "✓ Balanced" : "⚠ Must equal total"}
@@ -1018,27 +1091,24 @@ export default function CashierPage() {
             className="btn btn-success"
             style={{
               width: "100%",
-              padding: "1.1rem",
+              padding: "1.1rem 1.5rem",
               fontSize: "1.1rem",
               fontWeight: 700,
-              borderRadius: 12,
-              opacity: (submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId) ? 0.55 : 1,
+              borderRadius: 14,
+              background: submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId
+                ? undefined
+                : "linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%)",
+              boxShadow: submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId
+                ? "none"
+                : "0 8px 28px rgba(16, 185, 129, 0.35)",
+              border: "none",
+              letterSpacing: "0.01em",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease",
             }}
             disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId}
           >
-            {submitting
-              ? "Saving…"
-              : !ftNumber
-                ? "④ Scan or enter FT number first"
-                : !tableNumber || !waiterId
-                  ? "④ Select table & waiter first"
-                  : !balanced
-                    ? "④ Fix split amounts (must equal total)"
-                    : "④ Submit Transaction"}
+            {submitting ? "Saving…" : "✓ Submit Transaction"}
           </button>
-          <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem" }}>
-            Tip: focus the camera on the QR code for the fastest scan.
-          </p>
         </form>
       </main>
     </div>
