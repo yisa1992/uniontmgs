@@ -23,7 +23,7 @@ export default function FnbLoginPage() {
     const result = await loginUser(loginId, password, 'fnb')
 
     if (result.success) {
-      setUserName(result.name)
+      setUserName(result.name ?? '')
       // Start 5 second delay before showing welcome
       let remaining = 5
       setCountdown(remaining)

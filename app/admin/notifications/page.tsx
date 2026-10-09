@@ -69,7 +69,7 @@ export default async function NotificationsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {unread > 0 && (
-            <form action={markAllNotificationsRead}>
+            <form action={async () => { await markAllNotificationsRead() }}>
               <button
                 type="submit"
                 className="text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition"
@@ -79,7 +79,7 @@ export default async function NotificationsPage() {
             </form>
           )}
           {!tableMissing && (
-            <form action={createTestNotification}>
+            <form action={async () => { await createTestNotification() }}>
               <button
                 type="submit"
                 className="text-sm px-3 py-1.5 rounded-lg bg-violet-800/80 hover:bg-violet-700 text-violet-100 border border-violet-600/50 transition"

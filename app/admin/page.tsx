@@ -72,11 +72,14 @@ export default function AdminReportsPage() {
     const filtered = transactions.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
+    const extra = t as { tableNumber?: string; waiterName?: string };
     return (
-      t.ftNumber.toLowerCase().includes(q) ||
-      t.cashierName.toLowerCase().includes(q) ||
-      t.senderName.toLowerCase().includes(q) ||
-      t.receiverName || (t as { tableNumber?: string }).tableNumber || (t as { waiterName?: string }).waiterName.toLowerCase().includes(q)
+      t.ftNumber?.toLowerCase().includes(q) ||
+      t.cashierName?.toLowerCase().includes(q) ||
+      t.senderName?.toLowerCase().includes(q) ||
+      t.receiverName?.toLowerCase().includes(q) ||
+      extra.tableNumber?.toLowerCase().includes(q) ||
+      extra.waiterName?.toLowerCase().includes(q)
     );
   });
 
