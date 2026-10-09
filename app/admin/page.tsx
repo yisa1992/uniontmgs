@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import type { Transaction } from "@/lib/types";
 
 export default function AdminDashboardPage() {
@@ -86,12 +87,101 @@ export default function AdminDashboardPage() {
   return (
     <div>
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
-          Dashboard — Transaction Reports
+        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.6rem", fontWeight: 800, color: "#f8fafc" }}>
+          Admin Dashboard
         </h1>
-        <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
-          View, filter and analyze all transactions
+        <p style={{ color: "#94a3b8", marginBottom: "1.5rem", fontSize: "0.95rem" }}>
+          Manage users and view cashier transaction reports
         </p>
+
+        {/* Primary actions: Users registration + Cashier transaction reports */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "1rem",
+            marginBottom: "1.75rem",
+          }}
+        >
+          <Link
+            href="/admin/users"
+            style={{
+              textDecoration: "none",
+              display: "block",
+              padding: "1.35rem 1.5rem",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)",
+              color: "#fff",
+              boxShadow: "0 8px 28px rgba(20, 184, 166, 0.25)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ fontSize: "1.75rem", marginBottom: 8 }}>👥</div>
+            <div style={{ fontSize: "1.15rem", fontWeight: 700 }}>User Registration</div>
+            <div style={{ fontSize: "0.85rem", opacity: 0.9, marginTop: 4 }}>
+              Register cashiers, waiters &amp; staff — view and manage all users
+            </div>
+            <div style={{ marginTop: 12, fontSize: "0.8rem", fontWeight: 600, opacity: 0.95 }}>
+              Open users →
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/users/new"
+            style={{
+              textDecoration: "none",
+              display: "block",
+              padding: "1.35rem 1.5rem",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)",
+              color: "#fff",
+              boxShadow: "0 8px 28px rgba(30, 64, 175, 0.25)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ fontSize: "1.75rem", marginBottom: 8 }}>➕</div>
+            <div style={{ fontSize: "1.15rem", fontWeight: 700 }}>Add New User</div>
+            <div style={{ fontSize: "0.85rem", opacity: 0.9, marginTop: 4 }}>
+              Create a new cashier or staff account with Staff ID
+            </div>
+            <div style={{ marginTop: 12, fontSize: "0.8rem", fontWeight: 600, opacity: 0.95 }}>
+              Register now →
+            </div>
+          </Link>
+
+          <a
+            href="#cashier-reports"
+            style={{
+              textDecoration: "none",
+              display: "block",
+              padding: "1.35rem 1.5rem",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #4c1d95 0%, #7c3aed 100%)",
+              color: "#fff",
+              boxShadow: "0 8px 28px rgba(124, 58, 237, 0.25)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ fontSize: "1.75rem", marginBottom: 8 }}>📊</div>
+            <div style={{ fontSize: "1.15rem", fontWeight: 700 }}>Cashier Transaction Reports</div>
+            <div style={{ fontSize: "0.85rem", opacity: 0.9, marginTop: 4 }}>
+              View all FT transactions submitted by cashiers
+            </div>
+            <div style={{ marginTop: 12, fontSize: "0.8rem", fontWeight: 600, opacity: 0.95 }}>
+              Scroll to reports ↓
+            </div>
+          </a>
+        </div>
+
+        {/* Cashier transaction reports section */}
+        <div id="cashier-reports">
+          <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.25rem", fontWeight: 700, color: "#f8fafc" }}>
+            📊 Cashier Transaction Reports
+          </h2>
+          <p style={{ color: "#94a3b8", marginBottom: "1.25rem", fontSize: "0.9rem" }}>
+            All transactions recorded by cashiers — filter by date and search
+          </p>
+        </div>
 
         {/* Summary cards */}
         <div
