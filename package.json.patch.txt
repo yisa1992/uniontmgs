@@ -1,0 +1,5 @@
+Add this dependency to package.json:
+
+  "@supabase/ssr": "^0.6.1"
+
+Then run:  npm install
