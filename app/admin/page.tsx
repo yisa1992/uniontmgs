@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import type { Transaction } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import type { SessionUser, Transaction } from "@/lib/types";
 
-export default function AdminDashboardPage() {
+export default function AdminReportsPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState("");
@@ -30,10 +33,26 @@ export default function AdminDashboardPage() {
     }
   }, [from, to]);
 
-  // Auth is handled by admin/layout.tsx (same session as /login).
   useEffect(() => {
-    load();
-  }, [load]);
+    fetch("/api/auth/me")
+      .then((r) => {
+        if (!r.ok) {
+          router.push("/login");
+          return null;
+        }
+        return r.json();
+      })
+      .then((d) => {
+        if (d?.user) {
+          if (d.user.role !== "admin") {
+            router.push("/");
+            return;
+          }
+          setUser(d.user);
+          load();
+        }
+      });
+  }, [router, load]);
 
   async function deleteTx(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -50,7 +69,7 @@ export default function AdminDashboardPage() {
     }
   }
 
-  const filtered = transactions.filter((t) => {
+    const filtered = transactions.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
     const extra = t as { tableNumber?: string; waiterName?: string };
@@ -76,7 +95,7 @@ export default function AdminDashboardPage() {
     { total: 0, restaurant: 0, cafe: 0, butchery: 0, tip: 0, count: 0 }
   );
 
-  if (loading && transactions.length === 0) {
+  if (!user) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)" }}>
         Loading…
@@ -86,90 +105,62 @@ export default function AdminDashboardPage() {
 
   return (
     <div>
+      <Navbar user={user} />
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.6rem", fontWeight: 800, color: "#f8fafc" }}>
-          Admin Dashboard
+        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
+          Transaction Reports
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: "1.25rem", fontSize: "0.95rem" }}>
-          User registration &amp; cashier reports (Table · Restaurant · Cafe · Butchery · Tip)
+        <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
+          View, filter and analyze all transactions
         </p>
 
-        {/* User registration shortcuts */}
+        {/* Summary cards */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
             gap: "1rem",
             marginBottom: "1.5rem",
           }}
         >
-          <Link
-            href="/admin/users"
-            style={{
-              textDecoration: "none",
-              padding: "1.2rem 1.35rem",
-              borderRadius: 14,
-              background: "linear-gradient(135deg, #0f766e, #14b8a6)",
-              color: "#fff",
-              boxShadow: "0 6px 20px rgba(20,184,166,0.25)",
-            }}
-          >
-            <div style={{ fontSize: "1.5rem" }}>👥</div>
-            <div style={{ fontWeight: 700, fontSize: "1.05rem", marginTop: 6 }}>User Registration</div>
-            <div style={{ fontSize: "0.8rem", opacity: 0.9, marginTop: 4 }}>View &amp; manage all users</div>
-          </Link>
-          <Link
-            href="/admin/users/new"
-            style={{
-              textDecoration: "none",
-              padding: "1.2rem 1.35rem",
-              borderRadius: 14,
-              background: "linear-gradient(135deg, #1e3a5f, #1e40af)",
-              color: "#fff",
-              boxShadow: "0 6px 20px rgba(30,64,175,0.25)",
-            }}
-          >
-            <div style={{ fontSize: "1.5rem" }}>➕</div>
-            <div style={{ fontWeight: 700, fontSize: "1.05rem", marginTop: 6 }}>Register New User</div>
-            <div style={{ fontSize: "0.8rem", opacity: 0.9, marginTop: 4 }}>Add cashier or staff</div>
-          </Link>
-        </div>
-
-        <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem", fontWeight: 700, color: "#f8fafc" }}>
-          Cashier Transaction Report
-        </h2>
-
-        {/* Summary: Restaurant, Cafe, Butchery, Tip */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: "0.85rem",
-            marginBottom: "1.5rem",
-          }}
-        >
           {[
-            { label: "Transactions", value: String(totals.count), color: "#93c5fd" },
-            { label: "Total Amount", value: `${totals.total.toLocaleString()} ETB`, color: "#6ee7b7" },
-            { label: "Restaurant", value: `${totals.restaurant.toLocaleString()} ETB`, color: "#c4b5fd" },
-            { label: "Cafe", value: `${totals.cafe.toLocaleString()} ETB`, color: "#fcd34d" },
-            { label: "Butchery", value: `${totals.butchery.toLocaleString()} ETB`, color: "#fca5a5" },
-            { label: "Tip", value: `${totals.tip.toLocaleString()} ETB`, color: "#67e8f9" },
+            { label: "Transactions", value: totals.count, color: "#1e40af" },
+            {
+              label: "Total Amount",
+              value: `${totals.total.toLocaleString()} ETB`,
+              color: "#059669",
+            },
+            {
+              label: "Restaurant",
+              value: `${totals.restaurant.toLocaleString()} ETB`,
+              color: "#7c3aed",
+            },
+            {
+              label: "Cafe",
+              value: `${totals.cafe.toLocaleString()} ETB`,
+              color: "#d97706",
+            },
+            {
+              label: "Butchery",
+              value: `${totals.butchery.toLocaleString()} ETB`,
+              color: "#dc2626",
+            },
+            {
+              label: "Tips",
+              value: `${totals.tip.toLocaleString()} ETB`,
+              color: "#0891b2",
+            },
           ].map((c) => (
             <div
               key={c.label}
-              style={{
-                padding: "1rem 1.1rem",
-                borderRadius: 12,
-                background: "#0f172a",
-                border: "1px solid #1e293b",
-              }}
+              className="card"
+              style={{ padding: "1rem 1.15rem" }}
             >
               <div
                 style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  color: "#94a3b8",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                 }}
@@ -178,10 +169,10 @@ export default function AdminDashboardPage() {
               </div>
               <div
                 style={{
-                  fontSize: "1.15rem",
-                  fontWeight: 800,
+                  fontSize: "1.25rem",
+                  fontWeight: 700,
                   color: c.color,
-                  marginTop: "0.3rem",
+                  marginTop: "0.25rem",
                 }}
               >
                 {c.value}
@@ -297,10 +288,18 @@ export default function AdminDashboardPage() {
                       <button
                         type="button"
                         className="btn btn-outline"
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "var(--danger)", borderColor: "var(--danger)" }}
+                        style={{
+                          padding: "0.35rem 0.65rem",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          color: "#fff",
+                          background: "#dc2626",
+                          borderColor: "#dc2626",
+                        }}
                         onClick={(e) => deleteTx(t.id, e)}
+                        title="Delete this transaction"
                       >
-                        Delete
+                        🗑 Delete
                       </button>
                     </td>
                   </tr>
