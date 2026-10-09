@@ -27,8 +27,12 @@ export default function LoginPage() {
         return;
       }
       const role = data.user.role;
-      if (role === "admin") router.push("/admin");
-      else if (role === "auditor") router.push("/auditor");
+      // Admin area uses Supabase (Staff ID). Send admins to Admin Terminal login.
+      if (role === "admin") {
+        router.push("/admin-login");
+        return;
+      }
+      if (role === "auditor") router.push("/auditor");
       else router.push("/cashier");
       router.refresh();
     } catch {

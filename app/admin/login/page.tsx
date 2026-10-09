@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-/** Admin login now uses the unified /login page. */
+/** Login lives outside the admin layout at /admin-login so the auth guard does not wrap it. */
 export default function AdminLoginRedirect() {
-  redirect('/login')
+  redirect('/admin-login')
 }
