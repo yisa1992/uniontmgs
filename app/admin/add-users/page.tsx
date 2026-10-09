@@ -6,8 +6,6 @@ import { addUser } from '@/app/actions/users'
 
 const ACCESS_LEVELS = [
   { value: 'fnb', label: 'F&B' },
-  { value: 'waiter', label: 'Waiter' },
-  { value: 'cashier', label: 'Cashier' },
   { value: 'purchaser', label: 'Purchaser' },
   { value: 'bar', label: 'Bar' },
   { value: 'kitchen', label: 'Kitchen' },

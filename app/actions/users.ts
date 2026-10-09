@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
-export type UserRole = 'admin' | 'sales' | 'waiter' | 'cashier' | 'auditor'
+export type UserRole = 'admin' | 'sales'
 
 /**
  * Schema discovered from your project:

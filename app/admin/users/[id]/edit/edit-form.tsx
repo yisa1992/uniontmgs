@@ -72,9 +72,6 @@ export function EditUserForm({ user }: { user: UserProfile }) {
           className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-white"
         >
           <option value="sales">Sales Person</option>
-          <option value="waiter">Waiter</option>
-          <option value="cashier">Cashier</option>
-          <option value="auditor">Auditor</option>
           <option value="admin">Admin</option>
         </select>
       </div>
