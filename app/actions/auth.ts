@@ -107,7 +107,7 @@ export async function loginAdmin(formData: FormData) {
 export async function logoutAdmin() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  redirect('/admin-login')
+  redirect('/login')
 }
 
 export async function logoutSales() {

@@ -14,7 +14,7 @@ export default async function AdminLayout({
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/admin-login')
+    redirect('/login')
   }
 
   const metaRole = (user.user_metadata?.role as string) || ''
@@ -32,7 +32,7 @@ export default async function AdminLayout({
 
   const isAdmin = metaRole === 'admin' || dbRole === 'admin'
   if (!isAdmin) {
-    redirect('/admin-login')
+    redirect('/login')
   }
 
   const staffLabel =
