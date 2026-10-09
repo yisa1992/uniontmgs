@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     if (!ftNumber || totalAmount == null) {
       return NextResponse.json(
-        { error: "FT number and total amount required" },
+        { error: "Transaction number (FT) and total amount required" },
         { status: 400 }
       );
     }
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     if (await getTransactionByFt(String(ftNumber))) {
       return NextResponse.json(
-        { error: "FT number already exists in the system" },
+        { error: "This transaction / FT number already exists in the system" },
         { status: 409 }
       );
     }

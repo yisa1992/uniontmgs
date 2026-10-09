@@ -188,10 +188,16 @@ export default function CashierPage() {
       if (ftPart) out.ft = ftPart[1].toUpperCase();
     }
 
-    // Plain FT in QR text
+    // Plain FT or other transaction number in QR text
     if (!out.ft) {
-      const ft = raw.match(/\b(FT[A-Z0-9]{8,16})\b/i);
+      const ft = raw.match(/\b(FT[A-Z0-9]{8,20})\b/i);
       if (ft) out.ft = ft[1].toUpperCase();
+    }
+    if (!out.ft) {
+      const ref = raw.match(
+        /(?:txn|ref|reference|transaction|id)[=:/\s-]*([A-Z0-9]{6,24})/i
+      );
+      if (ref) out.ft = ref[1].toUpperCase();
     }
 
     // Amount if present
@@ -273,12 +279,12 @@ export default function CashierPage() {
 
       if (!text.trim() && !qrPayload) {
         setError(
-          "No QR or text detected. Point the camera at the QR code, avoid glare, or unlock fields to type."
+          "No QR or text detected. Point at the QR code, or unlock and type the transaction number from the receipt."
         );
         setFieldsLocked(false);
       } else if (!filledFt) {
         setError(
-          "Could not read FT number automatically. Unlock fields below to enter it, or retake focusing on the QR / FT line."
+          "FT / transaction number not found in the picture. Unlock and type the transaction number from the receipt, then save."
         );
         setFieldsLocked(false);
       }
@@ -301,21 +307,24 @@ export default function CashierPage() {
       .replace(/\s+/g, " ")
       .replace(/\n+/g, "\n");
 
-    // --- FT Number ---
+    // --- FT / Transaction Number ---
     if (!opts.skipFt) {
-      const ftPatterns = [
-        /(?:TRANSACTION\s*)?ID\s*[:.\-]?\s*(FT[A-Z0-9]{6,18})/i,
-        /\b(FT[A-Z0-9]{8,18})\b/i,
+      const txPatterns = [
+        // Standard CBE FT
+        /(?:TRANSACTION\s*)?ID\s*[:.\-]?\s*(FT[A-Z0-9]{6,20})/i,
+        /\b(FT[A-Z0-9]{8,20})\b/i,
         /FT\s*[#:.\-]?\s*([A-Z0-9]{8,20})/i,
-        /(?:reference|ref|txn|transaction)\s*(?:no|number|id|#)?[:.\s]*(FT?[A-Z0-9]{8,20})/i,
+        // Labeled transaction / reference number (may not start with FT)
+        /(?:transaction\s*(?:no|number|id|#)|txn\s*(?:no|number|id|#)?|reference\s*(?:no|number|#)?|ref\s*(?:no|number|#)?)\s*[:.\-]?\s*([A-Z0-9]{6,24})/i,
+        /(?:receipt\s*(?:no|number|id|#))\s*[:.\-]?\s*([A-Z0-9]{6,24})/i,
       ];
-      for (const p of ftPatterns) {
+      for (const p of txPatterns) {
         const m = cleaned.match(p);
         if (m) {
-          let ft = m[1].toUpperCase().replace(/[^A-Z0-9]/g, "");
-          if (!ft.startsWith("FT")) ft = "FT" + ft;
-          if (ft.length >= 10) {
-            setFtNumber(ft);
+          let code = m[1].toUpperCase().replace(/[^A-Z0-9]/g, "");
+          // Prefer keeping FT prefix when present; otherwise save as plain transaction number
+          if (code.length >= 6) {
+            setFtNumber(code);
             break;
           }
         }
@@ -440,7 +449,7 @@ export default function CashierPage() {
       return;
     }
     if (!ftNumber.trim()) {
-      setError("FT number is required");
+      setError("FT / transaction number is required");
       return;
     }
     const total = parseFloat(totalAmount) || 0;
@@ -724,8 +733,8 @@ export default function CashierPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
               <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", flex: 1 }}>
                 {fieldsLocked
-                  ? "Filled automatically from QR / OCR. Unlock only if the scan missed a value."
-                  : "Fields unlocked — type the values from the receipt, then submit."}
+                  ? "Filled automatically from QR / OCR. If FT is missing in the picture, unlock and type the transaction number."
+                  : "Fields unlocked — type the FT or transaction number from the receipt, then submit."}
               </p>
               <button
                 type="button"
@@ -744,13 +753,13 @@ export default function CashierPage() {
               }}
             >
               <div>
-                <label className="label">FT Number *</label>
+                <label className="label">FT / Transaction Number *</label>
                 <input
                   className="input"
                   value={ftNumber}
                   readOnly={fieldsLocked}
                   onChange={(e) => setFtNumber(e.target.value.toUpperCase())}
-                  placeholder={fieldsLocked ? "Auto-filled from scan" : "e.g. FT26282YJPPN"}
+                  placeholder={fieldsLocked ? "Auto-filled from scan" : "e.g. FT26282YJPPN or transaction number"}
                   required
                   style={{
                     background: fieldsLocked ? "#f1f5f9" : undefined,
