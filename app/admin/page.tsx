@@ -288,10 +288,18 @@ export default function AdminReportsPage() {
                       <button
                         type="button"
                         className="btn btn-outline"
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "var(--danger)", borderColor: "var(--danger)" }}
+                        style={{
+                          padding: "0.35rem 0.65rem",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          color: "#fff",
+                          background: "#dc2626",
+                          borderColor: "#dc2626",
+                        }}
                         onClick={(e) => deleteTx(t.id, e)}
+                        title="Delete this transaction"
                       >
-                        Delete
+                        🗑 Delete
                       </button>
                     </td>
                   </tr>

@@ -621,10 +621,26 @@ export default function CashierPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              marginBottom: "1rem",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: imagePreview ? "#d1fae5" : "#e2e8f0", color: imagePreview ? "#065f46" : "#475569" }}>1 · Scan</span>
+            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: (tableNumber && waiterId) ? "#d1fae5" : "#e2e8f0", color: (tableNumber && waiterId) ? "#065f46" : "#475569" }}>2 · Table & Waiter</span>
+            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: balanced && total > 0 ? "#d1fae5" : "#e2e8f0", color: balanced && total > 0 ? "#065f46" : "#475569" }}>3 · Split</span>
+            <span style={{ padding: "0.35rem 0.65rem", borderRadius: 999, background: "#e2e8f0", color: "#475569" }}>4 · Submit</span>
+          </div>
+
           {/* Camera / photo section */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <label className="label">QR Code / Receipt Photo</label>
+            <label className="label">① Scan Receipt / QR Code</label>
             <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
               Capture the QR code or receipt. The image will be saved with the transaction.
             </p>
@@ -755,7 +771,7 @@ export default function CashierPage() {
                   fontWeight: 600,
                 }}
               >
-                Scanning receipt with OCR… please wait
+                🔍 Scanning… reading QR &amp; text. Keep this screen open.
               </p>
             )}
           </div>
@@ -853,9 +869,12 @@ export default function CashierPage() {
             </div>
           </div>
 
-          {/* Table & Waiter */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Table &amp; Waiter</h3>
+          {/* Table & Waiter — large touch-friendly */}
+          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem", border: "2px solid #0ea5e9" }}>
+            <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem" }}>② Table &amp; Waiter</h3>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+              Required before you can save the transaction.
+            </p>
             <div
               style={{
                 display: "grid",
@@ -871,6 +890,8 @@ export default function CashierPage() {
                   onChange={(e) => setTableNumber(e.target.value)}
                   placeholder="e.g. 12"
                   required
+                  inputMode="numeric"
+                  style={{ fontSize: "1.15rem", padding: "0.85rem 1rem", fontWeight: 600 }}
                 />
               </div>
               <div>
@@ -885,6 +906,7 @@ export default function CashierPage() {
                     setWaiterName(w?.fullName || "");
                   }}
                   required
+                  style={{ fontSize: "1.05rem", padding: "0.85rem 1rem" }}
                 >
                   <option value="">Select waiter…</option>
                   {waiters.map((w) => (
@@ -894,8 +916,8 @@ export default function CashierPage() {
                   ))}
                 </select>
                 {waiters.length === 0 && (
-                  <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.35rem 0 0" }}>
-                    No waiters found. Admin must register users with role &quot;waiter&quot;.
+                  <p style={{ fontSize: "0.85rem", color: "#dc2626", margin: "0.5rem 0 0", fontWeight: 500 }}>
+                    No waiters yet. Ask Admin to register a user with role <strong>Waiter</strong> (Admin → Users → Add).
                   </p>
                 )}
               </div>
@@ -904,7 +926,8 @@ export default function CashierPage() {
 
           {/* Split amounts */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-            <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Split Amounts</h3>
+            <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem" }}>③ Split Amounts</h3>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.8rem", color: "var(--muted)" }}>Restaurant + Cafe + Butchery + Tip must equal the scanned total.</p>
             <div
               style={{
                 display: "grid",
@@ -993,11 +1016,29 @@ export default function CashierPage() {
           <button
             type="submit"
             className="btn btn-success"
-            style={{ width: "100%", padding: "0.85rem", fontSize: "1rem" }}
+            style={{
+              width: "100%",
+              padding: "1.1rem",
+              fontSize: "1.1rem",
+              fontWeight: 700,
+              borderRadius: 12,
+              opacity: (submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId) ? 0.55 : 1,
+            }}
             disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId}
           >
-            {submitting ? "Saving…" : "Submit Transaction"}
+            {submitting
+              ? "Saving…"
+              : !ftNumber
+                ? "④ Scan or enter FT number first"
+                : !tableNumber || !waiterId
+                  ? "④ Select table & waiter first"
+                  : !balanced
+                    ? "④ Fix split amounts (must equal total)"
+                    : "④ Submit Transaction"}
           </button>
+          <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+            Tip: focus the camera on the QR code for the fastest scan.
+          </p>
         </form>
       </main>
     </div>

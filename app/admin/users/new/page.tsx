@@ -31,7 +31,7 @@ export default function NewUserPage() {
             ← Back to Users
           </Link>
           <h1 className="text-2xl font-bold text-white mt-2">Add New User</h1>
-          <p className="text-slate-400 text-sm">Create an Admin or Sales Person account</p>
+          <p className="text-slate-400 text-sm">Create Admin, Sales, Waiter, Cashier, or Auditor</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
@@ -82,6 +82,9 @@ export default function NewUserPage() {
               className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-white"
             >
               <option value="sales">Sales Person</option>
+              <option value="waiter">Waiter</option>
+              <option value="cashier">Cashier</option>
+              <option value="auditor">Auditor</option>
               <option value="admin">Admin</option>
             </select>
           </div>
