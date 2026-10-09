@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { logoutAdmin } from '@/app/actions/auth'
+import { useRouter } from 'next/navigation'
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: '🏠' },
@@ -68,7 +68,20 @@ export default function AdminSidebar({
   unreadCount?: number
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    setLoggingOut(true)
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // ignore
+    }
+    router.push('/login')
+    router.refresh()
+  }
 
   useEffect(() => {
     setOpen(false)
@@ -201,14 +214,14 @@ export default function AdminSidebar({
         </nav>
 
         <div className="p-3 border-t border-slate-800">
-          <form action={logoutAdmin}>
-            <button
-              type="submit"
-              className="w-full text-sm px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-            >
-              Log out
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="w-full text-sm px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition disabled:opacity-50"
+          >
+            {loggingOut ? 'Logging out…' : 'Log out'}
+          </button>
         </div>
       </aside>
 

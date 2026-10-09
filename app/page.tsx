@@ -8,8 +8,7 @@ export default async function Home() {
   if (!session) {
     redirect("/login");
   }
-  // Admin dashboard requires Supabase session (Staff ID login at /admin-login)
-  if (session.role === "admin") redirect("/admin-login");
+  if (session.role === "admin") redirect("/admin");
   if (session.role === "auditor") redirect("/auditor");
   if (session.role === "cashier") redirect("/cashier");
   redirect("/login");

@@ -1,55 +1,28 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth'
 import AdminSidebar from './admin-sidebar'
-import { getUnreadNotificationCount } from '@/app/actions/notifications'
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // One login only — same session as /login (no second Admin Terminal page)
+  const session = await getSession()
 
-  if (!user) {
-    redirect('/admin-login')
+  if (!session) {
+    redirect('/login')
   }
 
-  const metaRole = (user.user_metadata?.role as string) || ''
-  let dbRole = ''
-  try {
-    const { data: row } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-    dbRole = row?.role || ''
-  } catch {
-    // ignore
+  if (session.role !== 'admin') {
+    redirect('/login')
   }
 
-  const isAdmin = metaRole === 'admin' || dbRole === 'admin'
-  if (!isAdmin) {
-    redirect('/admin-login')
-  }
-
-  const staffLabel =
-    (user.user_metadata?.staff_id as string) ||
-    user.email?.split('@')[0]?.toUpperCase() ||
-    'Admin'
-
-  let unreadCount = 0
-  try {
-    unreadCount = await getUnreadNotificationCount()
-  } catch {
-    unreadCount = 0
-  }
+  const staffLabel = session.fullName || session.username || 'Admin'
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-slate-950 text-slate-100">
-      <AdminSidebar staffLabel={staffLabel} unreadCount={unreadCount} />
+      <AdminSidebar staffLabel={staffLabel} unreadCount={0} />
       <main className="flex-1 min-w-0 overflow-x-auto pb-2">{children}</main>
     </div>
   )
