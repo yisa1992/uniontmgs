@@ -4,6 +4,7 @@ import {
   getTransactions,
   createTransaction,
   getTransactionByFt,
+  deleteTransaction,
 } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -47,11 +48,26 @@ export async function POST(req: NextRequest) {
       senderName,
       receiverName,
       imageData,
+      tableNumber,
+      waiterId,
+      waiterName,
     } = body;
 
     if (!ftNumber || totalAmount == null) {
       return NextResponse.json(
         { error: "Transaction number (FT) and total amount required" },
+        { status: 400 }
+      );
+    }
+    if (!tableNumber || !String(tableNumber).trim()) {
+      return NextResponse.json(
+        { error: "Table number is required" },
+        { status: 400 }
+      );
+    }
+    if (!waiterId && !waiterName) {
+      return NextResponse.json(
+        { error: "Waiter is required" },
         { status: 400 }
       );
     }
@@ -78,7 +94,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Avoid storing huge images that blow request/DB limits
     let safeImage: string | undefined = imageData || undefined;
     if (safeImage && safeImage.length > 1_500_000) {
       safeImage = undefined;
@@ -96,11 +111,33 @@ export async function POST(req: NextRequest) {
       imageData: safeImage,
       cashierId: session!.id,
       cashierName: session!.fullName,
+      tableNumber: String(tableNumber).trim(),
+      waiterId: waiterId ? String(waiterId) : "",
+      waiterName: waiterName ? String(waiterName) : "",
     });
 
     return NextResponse.json({ transaction: tx }, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed to create transaction";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Transaction id required" }, { status: 400 });
+    }
+    await deleteTransaction(id);
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to delete transaction";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

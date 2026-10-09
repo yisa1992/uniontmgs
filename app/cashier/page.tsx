@@ -29,6 +29,10 @@ export default function CashierPage() {
   const [tip, setTip] = useState("");
   const [senderName, setSenderName] = useState("");
   const [receiverName, setReceiverName] = useState("");
+  const [tableNumber, setTableNumber] = useState("");
+  const [waiterId, setWaiterId] = useState("");
+  const [waiterName, setWaiterName] = useState("");
+  const [waiters, setWaiters] = useState<{ id: string; fullName: string }[]>([]);
   const [ftExists, setFtExists] = useState(false);
   const [fieldsLocked, setFieldsLocked] = useState(true);
   const scanLoopRef = useRef<number | null>(null);
@@ -49,6 +53,20 @@ export default function CashierPage() {
             return;
           }
           setUser(d.user);
+          // Load active waiters for dropdown
+          fetch("/api/users?role=waiter")
+            .then((r) => r.json())
+            .then((w) => {
+              if (Array.isArray(w.users)) {
+                setWaiters(
+                  w.users.map((u: { id: string; fullName: string }) => ({
+                    id: u.id,
+                    fullName: u.fullName,
+                  }))
+                );
+              }
+            })
+            .catch(() => {});
         }
       });
   }, [router]);
@@ -452,6 +470,14 @@ export default function CashierPage() {
       setError("FT / transaction number is required");
       return;
     }
+    if (!tableNumber.trim()) {
+      setError("Table number is required");
+      return;
+    }
+    if (!waiterId) {
+      setError("Please select a waiter");
+      return;
+    }
     const total = parseFloat(totalAmount) || 0;
     const r = parseFloat(restaurant) || 0;
     const c = parseFloat(cafe) || 0;
@@ -495,6 +521,9 @@ export default function CashierPage() {
           senderName: senderName || "",
           receiverName: receiverName || "",
           imageData: imagePayload,
+          tableNumber: tableNumber.trim(),
+          waiterId,
+          waiterName,
         }),
       });
 
@@ -529,6 +558,9 @@ export default function CashierPage() {
       setTip("");
       setSenderName("");
       setReceiverName("");
+      setTableNumber("");
+      setWaiterId("");
+      setWaiterName("");
       setImagePreview(null);
       setFtExists(false);
       setFieldsLocked(true);
@@ -821,6 +853,55 @@ export default function CashierPage() {
             </div>
           </div>
 
+          {/* Table & Waiter */}
+          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
+            <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Table &amp; Waiter</h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "1rem",
+              }}
+            >
+              <div>
+                <label className="label">Table Number *</label>
+                <input
+                  className="input"
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  placeholder="e.g. 12"
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Waiter *</label>
+                <select
+                  className="input"
+                  value={waiterId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setWaiterId(id);
+                    const w = waiters.find((x) => x.id === id);
+                    setWaiterName(w?.fullName || "");
+                  }}
+                  required
+                >
+                  <option value="">Select waiter…</option>
+                  {waiters.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.fullName}
+                    </option>
+                  ))}
+                </select>
+                {waiters.length === 0 && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.35rem 0 0" }}>
+                    No waiters found. Admin must register users with role &quot;waiter&quot;.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Split amounts */}
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
             <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Split Amounts</h3>
@@ -913,7 +994,7 @@ export default function CashierPage() {
             type="submit"
             className="btn btn-success"
             style={{ width: "100%", padding: "0.85rem", fontSize: "1rem" }}
-            disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount}
+            disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId}
           >
             {submitting ? "Saving…" : "Submit Transaction"}
           </button>

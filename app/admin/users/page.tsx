@@ -299,6 +299,7 @@ export default function AdminUsersPage() {
                     <option value="admin">Admin</option>
                     <option value="auditor">Auditor</option>
                     <option value="cashier">Cashier</option>
+                    <option value="waiter">Waiter</option>
                   </select>
                 </div>
                 {editing && (

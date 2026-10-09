@@ -54,14 +54,29 @@ export default function AdminReportsPage() {
       });
   }, [router, load]);
 
-  const filtered = transactions.filter((t) => {
+  async function deleteTx(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this transaction? This cannot be undone.")) return;
+    const res = await fetch(`/api/transactions?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      setSelectedTx((prev) => (prev && prev.id === id ? null : prev));
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Failed to delete");
+    }
+  }
+
+    const filtered = transactions.filter((t) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
       t.ftNumber.toLowerCase().includes(q) ||
       t.cashierName.toLowerCase().includes(q) ||
       t.senderName.toLowerCase().includes(q) ||
-      t.receiverName.toLowerCase().includes(q)
+      t.receiverName || (t as { tableNumber?: string }).tableNumber || (t as { waiterName?: string }).waiterName.toLowerCase().includes(q)
     );
   });
 
@@ -223,6 +238,8 @@ export default function AdminReportsPage() {
               <thead>
                 <tr>
                   <th>Date</th>
+                  <th>Table</th>
+                  <th>Waiter</th>
                   <th>FT Number</th>
                   <th>Total</th>
                   <th>Restaurant</th>
@@ -232,6 +249,7 @@ export default function AdminReportsPage() {
                   <th>Cashier</th>
                   <th>Sender</th>
                   <th>Receiver</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +266,8 @@ export default function AdminReportsPage() {
                         {new Date(t.createdAt).toLocaleTimeString()}
                       </span>
                     </td>
+                    <td style={{ fontWeight: 700 }}>{(t as { tableNumber?: string }).tableNumber || "—"}</td>
+                    <td>{(t as { waiterName?: string }).waiterName || "—"}</td>
                     <td style={{ fontWeight: 600, fontFamily: "monospace" }}>
                       {t.ftNumber}
                     </td>
@@ -261,6 +281,16 @@ export default function AdminReportsPage() {
                     <td>{t.cashierName}</td>
                     <td>{t.senderName || "—"}</td>
                     <td>{t.receiverName || "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "var(--danger)", borderColor: "var(--danger)" }}
+                        onClick={(e) => deleteTx(t.id, e)}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -300,6 +330,8 @@ export default function AdminReportsPage() {
               <table style={{ width: "100%", fontSize: "0.9rem" }}>
                 <tbody>
                   {[
+                    ["Table Number", (selectedTx as { tableNumber?: string }).tableNumber || "—"],
+                    ["Waiter", (selectedTx as { waiterName?: string }).waiterName || "—"],
                     ["FT Number", selectedTx.ftNumber],
                     ["Total Amount", `${selectedTx.totalAmount.toLocaleString()} ETB`],
                     ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],

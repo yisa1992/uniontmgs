@@ -3,8 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import { supabaseAdmin } from "./supabase";
 import type { User, Transaction, Notification, Role } from "./types";
 
-// ── Row mappers (DB snake_case ↔ app camelCase) ─────────
-
 function mapUser(row: Record<string, unknown>): User {
   return {
     id: String(row.id),
@@ -32,6 +30,9 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     imageData: row.image_data ? String(row.image_data) : undefined,
     cashierId: String(row.cashier_id ?? ""),
     cashierName: String(row.cashier_name),
+    tableNumber: String(row.table_number ?? ""),
+    waiterId: String(row.waiter_id ?? ""),
+    waiterName: String(row.waiter_name ?? ""),
     createdAt: String(row.created_at),
     status: (row.status as Transaction["status"]) || "completed",
   };
@@ -44,6 +45,8 @@ function mapNotification(row: Record<string, unknown>): Notification {
     ftNumber: String(row.ft_number),
     totalAmount: Number(row.total_amount),
     cashierName: String(row.cashier_name),
+    tableNumber: String(row.table_number ?? ""),
+    waiterName: String(row.waiter_name ?? ""),
     message: String(row.message),
     read: Boolean(row.read),
     createdAt: String(row.created_at),
@@ -57,6 +60,17 @@ export async function getUsers(): Promise<User[]> {
     .from("users")
     .select("*")
     .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapUser);
+}
+
+export async function getUsersByRole(role: Role): Promise<User[]> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .eq("role", role)
+    .eq("active", true)
+    .order("full_name", { ascending: true });
   if (error) throw new Error(error.message);
   return (data || []).map(mapUser);
 }
@@ -173,8 +187,6 @@ export async function createTransaction(
   const existing = await getTransactionByFt(data.ftNumber);
   if (existing) throw new Error("FT number already exists");
 
-  // Session may still hold an old user id (from JSON-file era). Only set
-  // cashier_id if that user actually exists in Supabase to avoid FK errors.
   let cashierId: string | null = data.cashierId || null;
   if (cashierId) {
     const { data: cashierRow } = await supabaseAdmin
@@ -183,7 +195,6 @@ export async function createTransaction(
       .eq("id", cashierId)
       .maybeSingle();
     if (!cashierRow) {
-      // Try resolve by full name as fallback
       const { data: byName } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -192,6 +203,16 @@ export async function createTransaction(
         .maybeSingle();
       cashierId = byName ? String(byName.id) : null;
     }
+  }
+
+  let waiterId: string | null = data.waiterId || null;
+  if (waiterId) {
+    const { data: w } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("id", waiterId)
+      .maybeSingle();
+    if (!w) waiterId = null;
   }
 
   const row = {
@@ -207,6 +228,9 @@ export async function createTransaction(
     image_data: data.imageData || null,
     cashier_id: cashierId,
     cashier_name: data.cashierName,
+    table_number: data.tableNumber || "",
+    waiter_id: waiterId,
+    waiter_name: data.waiterName || "",
     status: "completed",
     created_at: new Date().toISOString(),
   };
@@ -220,15 +244,28 @@ export async function createTransaction(
 
   const tx = mapTransaction(inserted);
 
+  const tablePart = tx.tableNumber ? `Table ${tx.tableNumber}` : "No table";
+  const waiterPart = tx.waiterName ? `Waiter: ${tx.waiterName}` : "No waiter";
   await createNotification({
     transactionId: tx.id,
     ftNumber: tx.ftNumber,
     totalAmount: tx.totalAmount,
     cashierName: tx.cashierName,
-    message: `New transaction FT: ${tx.ftNumber} — ${tx.totalAmount.toLocaleString()} ETB by ${tx.cashierName}`,
+    tableNumber: tx.tableNumber,
+    waiterName: tx.waiterName,
+    message: `Table ${tx.tableNumber || "—"} · ${waiterPart} · FT: ${tx.ftNumber} · ${tx.totalAmount.toLocaleString()} ETB by ${tx.cashierName}`,
   });
 
   return tx;
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  // notifications cascade via FK on delete
+  const { error } = await supabaseAdmin
+    .from("transactions")
+    .delete()
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 // ── Notifications ──────────────────────────────────────
@@ -247,6 +284,8 @@ export async function createNotification(data: {
   ftNumber: string;
   totalAmount: number;
   cashierName: string;
+  tableNumber?: string;
+  waiterName?: string;
   message: string;
 }): Promise<Notification> {
   const row = {
@@ -255,6 +294,8 @@ export async function createNotification(data: {
     ft_number: data.ftNumber,
     total_amount: data.totalAmount,
     cashier_name: data.cashierName,
+    table_number: data.tableNumber || "",
+    waiter_name: data.waiterName || "",
     message: data.message,
     read: false,
     created_at: new Date().toISOString(),
@@ -285,7 +326,7 @@ export async function markAllNotificationsRead(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-// ── Seed demo users if empty ───────────────────────────
+// ── Seed ───────────────────────────────────────────────
 
 export async function seedIfEmpty(): Promise<void> {
   const users = await getUsers();
@@ -308,5 +349,11 @@ export async function seedIfEmpty(): Promise<void> {
     password: "cashier123",
     fullName: "Union Cashier",
     role: "cashier",
+  });
+  await createUser({
+    username: "waiter1",
+    password: "waiter123",
+    fullName: "Waiter One",
+    role: "waiter",
   });
 }

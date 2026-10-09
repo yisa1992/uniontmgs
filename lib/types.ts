@@ -1,4 +1,4 @@
-export type Role = "admin" | "auditor" | "cashier";
+export type Role = "admin" | "auditor" | "cashier" | "waiter";
 
 export interface User {
   id: string;
@@ -24,6 +24,9 @@ export interface Transaction {
   imageData?: string;
   cashierId: string;
   cashierName: string;
+  tableNumber: string;
+  waiterId: string;
+  waiterName: string;
   createdAt: string;
   status: "completed" | "pending";
 }
@@ -34,6 +37,8 @@ export interface Notification {
   ftNumber: string;
   totalAmount: number;
   cashierName: string;
+  tableNumber: string;
+  waiterName: string;
   message: string;
   read: boolean;
   createdAt: string;
