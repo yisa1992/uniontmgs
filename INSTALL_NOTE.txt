@@ -1,0 +1,16 @@
+IMPORTANT - install the QR library in your project root:
+
+  npm install jsqr
+
+Then commit and push:
+
+  git add app/cashier/page.tsx package.json package-lock.json
+  git commit -m "Cashier: QR decode + OCR + unlock fields + gallery upload"
+  git push origin main
+
+Vercel will redeploy automatically.
+
+Also fixed network error on save:
+- Receipt image is compressed before upload
+- Clearer error messages from the server
+- Image is optional (can save without photo if upload fails)

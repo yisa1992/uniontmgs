@@ -1,16 +1,21 @@
--- Run this in Supabase Dashboard → SQL Editor → New query
+-- Run in Supabase SQL Editor (safe to re-run)
 
--- Users
+-- Users (include waiter role)
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   username text unique not null,
   password_hash text not null,
   full_name text not null,
-  role text not null check (role in ('admin', 'auditor', 'cashier')),
+  role text not null check (role in ('admin', 'auditor', 'cashier', 'waiter')),
   active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+-- If users table already exists without waiter, widen the check:
+alter table users drop constraint if exists users_role_check;
+alter table users add constraint users_role_check
+  check (role in ('admin', 'auditor', 'cashier', 'waiter'));
 
 -- Transactions
 create table if not exists transactions (
@@ -26,9 +31,17 @@ create table if not exists transactions (
   image_data text,
   cashier_id uuid references users(id),
   cashier_name text not null,
+  table_number text default '',
+  waiter_id uuid references users(id),
+  waiter_name text default '',
   status text default 'completed',
   created_at timestamptz default now()
 );
+
+-- Add columns if table already existed
+alter table transactions add column if not exists table_number text default '';
+alter table transactions add column if not exists waiter_id uuid references users(id);
+alter table transactions add column if not exists waiter_name text default '';
 
 -- Notifications
 create table if not exists notifications (
@@ -37,18 +50,17 @@ create table if not exists notifications (
   ft_number text not null,
   total_amount numeric(12,2) not null,
   cashier_name text not null,
+  table_number text default '',
+  waiter_name text default '',
   message text not null,
   read boolean default false,
   created_at timestamptz default now()
 );
 
--- Indexes
+alter table notifications add column if not exists table_number text default '';
+alter table notifications add column if not exists waiter_name text default '';
+
 create index if not exists idx_transactions_ft on transactions (ft_number);
 create index if not exists idx_transactions_created on transactions (created_at desc);
 create index if not exists idx_notifications_created on notifications (created_at desc);
 create index if not exists idx_notifications_read on notifications (read);
-
--- Optional: allow service role full access (default). Enable RLS only if you use anon key for client.
--- alter table users enable row level security;
--- alter table transactions enable row level security;
--- alter table notifications enable row level security;
