@@ -133,13 +133,23 @@ export default function AdminReportsPage() {
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
-      <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem", fontWeight: 700 }}>
-        Transaction Reports
-      </h1>
-      <p style={{ color: "#64748b", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
-        Every transaction by date, time, waiter, cashier — with cafe, restaurant,
-        butchery and tip breakdown
-      </p>
+      <div
+        style={{
+          background: "linear-gradient(135deg, #0f766e 0%, #0ea5e9 55%, #8b5cf6 100%)",
+          borderRadius: 20,
+          padding: "1.5rem 1.75rem",
+          color: "#fff",
+          marginBottom: "1.5rem",
+          boxShadow: "0 12px 40px rgba(14, 165, 233, 0.25)",
+        }}
+      >
+        <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.6rem", fontWeight: 800 }}>
+          📊 Transaction Reports
+        </h1>
+        <p style={{ margin: 0, opacity: 0.92, fontSize: "0.95rem" }}>
+          Every transaction by date, time, waiter & cashier — cafe, restaurant, butchery & tips
+        </p>
+      </div>
 
       <div
         style={{
@@ -159,18 +169,30 @@ export default function AdminReportsPage() {
             ["TIPS", `${totals.tip.toLocaleString()} ETB`, "#0f766e"],
           ] as [string, string, string][]
         ).map(([label, value, color]) => (
-          <div key={label} style={{ minWidth: 120 }}>
+          <div
+            key={label}
+            style={{
+              minWidth: 140,
+              flex: "1 1 140px",
+              background: "#fff",
+              borderRadius: 16,
+              padding: "1rem 1.15rem",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 14px rgba(15, 23, 42, 0.06)",
+              borderTop: `4px solid ${color}`,
+            }}
+          >
             <div
               style={{
                 fontSize: 11,
-                fontWeight: 600,
+                fontWeight: 700,
                 color: "#64748b",
                 letterSpacing: "0.04em",
               }}
             >
               {label}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 6 }}>{value}</div>
           </div>
         ))}
       </div>
@@ -185,7 +207,8 @@ export default function AdminReportsPage() {
           padding: "1rem",
           background: "#fff",
           border: "1px solid #e2e8f0",
-          borderRadius: 12,
+          borderRadius: 16,
+          boxShadow: "0 4px 14px rgba(15, 23, 42, 0.05)",
         }}
       >
         <div>
@@ -256,8 +279,9 @@ export default function AdminReportsPage() {
         style={{
           background: "#fff",
           border: "1px solid #e2e8f0",
-          borderRadius: 12,
+          borderRadius: 16,
           overflowX: "auto",
+          boxShadow: "0 8px 28px rgba(15, 23, 42, 0.07)",
         }}
       >
         {loading ? (
@@ -272,7 +296,7 @@ export default function AdminReportsPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns: COLS,
-                background: "#f1f5f9",
+                background: "linear-gradient(90deg, #ecfdf5 0%, #e0f2fe 50%, #f3e8ff 100%)",
               }}
             >
               {[

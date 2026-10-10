@@ -16,9 +16,16 @@ export default async function AdminLayout({
   const staffLabel = session.fullName || session.username || "Admin";
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(160deg, #f0fdfa 0%, #f8fafc 40%, #eef2ff 100%)",
+      }}
+    >
       <AdminSidebar staffLabel={staffLabel} />
-      <main className="flex-1 min-w-0 overflow-x-auto pb-2">{children}</main>
+      <main style={{ minHeight: "calc(100vh - 64px)", paddingBottom: 24 }}>
+        {children}
+      </main>
     </div>
   );
 }

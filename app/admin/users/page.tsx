@@ -174,19 +174,24 @@ export default function AdminUsersPage() {
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "1.5rem" }}>
       <div
         style={{
+          background: "linear-gradient(135deg, #7c3aed 0%, #0ea5e9 50%, #14b8a6 100%)",
+          borderRadius: 20,
+          padding: "1.35rem 1.5rem",
+          color: "#fff",
+          marginBottom: "1.5rem",
+          boxShadow: "0 12px 40px rgba(124, 58, 237, 0.25)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "1.5rem",
           flexWrap: "wrap",
           gap: "0.75rem",
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>
-            User Management
+          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>
+            👥 User Management
           </h1>
-          <p style={{ color: "#64748b", margin: "0.25rem 0 0", fontSize: "0.9rem" }}>
+          <p style={{ margin: "0.35rem 0 0", opacity: 0.92, fontSize: "0.9rem" }}>
             Create and edit Admin, Auditor, Waiter, and Cashier accounts
           </p>
         </div>
@@ -194,13 +199,14 @@ export default function AdminUsersPage() {
           type="button"
           onClick={openCreate}
           style={{
-            padding: "10px 18px",
-            background: "#0f766e",
-            color: "#fff",
+            padding: "12px 20px",
+            background: "#fff",
+            color: "#7c3aed",
             border: "none",
-            borderRadius: 8,
-            fontWeight: 600,
+            borderRadius: 12,
+            fontWeight: 700,
             cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
           }}
         >
           + New User
@@ -275,8 +281,9 @@ export default function AdminUsersPage() {
         style={{
           background: "#fff",
           border: "1px solid #e2e8f0",
-          borderRadius: 12,
+          borderRadius: 16,
           overflowX: "auto",
+          boxShadow: "0 8px 28px rgba(15, 23, 42, 0.07)",
         }}
       >
         {loading ? (
@@ -293,7 +300,7 @@ export default function AdminUsersPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns: COLS,
-                background: "#f1f5f9",
+                background: "linear-gradient(90deg, #f3e8ff 0%, #e0f2fe 50%, #ecfdf5 100%)",
               }}
             >
               {["Username", "Full Name", "Role", "Status", "Created", "Actions"].map(

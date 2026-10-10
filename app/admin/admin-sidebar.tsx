@@ -1,163 +1,246 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: '🏠' },
-  { href: '/admin/users', label: 'Users', icon: '👥' },
-  { href: '/admin/reports', label: 'Reports', icon: '📋' },
-]
+  { href: "/admin", label: "Dashboard", icon: "🏠", color: "#0ea5e9" },
+  { href: "/admin/users", label: "Users", icon: "👥", color: "#8b5cf6" },
+  { href: "/admin/reports", label: "Reports", icon: "📊", color: "#10b981" },
+];
 
-/** Three horizontal lines — menu button logo */
-function ThreeLineIcon({ open }: { open: boolean }) {
-  return (
-    <span className="relative flex flex-col justify-center items-center w-6 h-6" aria-hidden>
-      <span
-        className={`block w-5 h-[2.5px] rounded-full bg-current transition-all duration-200 origin-center ${
-          open ? 'translate-y-[7px] rotate-45' : ''
-        }`}
-      />
-      <span
-        className={`block w-5 h-[2.5px] rounded-full bg-current my-[4.5px] transition-all duration-200 ${
-          open ? 'opacity-0 scale-x-0' : ''
-        }`}
-      />
-      <span
-        className={`block w-5 h-[2.5px] rounded-full bg-current transition-all duration-200 origin-center ${
-          open ? '-translate-y-[7px] -rotate-45' : ''
-        }`}
-      />
-    </span>
-  )
-}
-
-export default function AdminSidebar({
-  staffLabel,
-}: {
-  staffLabel: string
-  unreadCount?: number
-}) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [open, setOpen] = useState(false)
+export default function AdminSidebar({ staffLabel }: { staffLabel: string }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setOpen(false)
-  }, [pathname])
+    setOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === "Escape") setOpen(false);
     }
     if (open) {
-      document.addEventListener('keydown', onKey)
-      document.body.style.overflow = 'hidden'
+      document.addEventListener("keydown", onKey);
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = ''
+      document.body.style.overflow = "";
     }
     return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [open])
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
-  function isActive(href: string) {
-    if (href === '/admin') return pathname === '/admin'
-    return pathname === href || pathname.startsWith(href + '/')
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
   }
 
-  async function handleLogout() {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-    } catch {
-      // ignore
-    }
-    router.push('/login')
-    router.refresh()
+  function isActive(href: string) {
+    if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
+    return pathname.startsWith(href);
   }
 
   return (
     <>
-      {/* Fixed side button — 3-line logo; opens nav list on click */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`fixed top-4 left-4 z-[60] flex items-center justify-center w-11 h-11 rounded-xl border shadow-lg transition
-          ${
-            open
-              ? 'bg-purple-600 border-purple-500 text-white'
-              : 'bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:border-slate-500'
-          }`}
-        aria-label={open ? 'Close menu' : 'Open menu'}
-        aria-expanded={open}
+      {/* Top bar */}
+      <header
+        style={{
+          background: "linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #14b8a6 100%)",
+          color: "#fff",
+          padding: "0.75rem 1.25rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+          boxShadow: "0 4px 20px rgba(15, 118, 110, 0.35)",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+        }}
       >
-        <ThreeLineIcon open={open} />
-      </button>
-
-      {/* Dark overlay when menu is open */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/55 transition-opacity duration-200 ${
-          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setOpen(false)}
-        aria-hidden={!open}
-      />
-
-      {/* Navigation list — slides in only when button is clicked */}
-      <aside
-        className={`fixed top-0 left-0 z-50 h-full w-72 max-w-[85vw] border-r border-slate-800 bg-slate-900 flex flex-col shadow-2xl transition-transform duration-250 ease-out ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between gap-2 pl-16">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Menu"
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              border: "none",
+              background: "rgba(255,255,255,0.18)",
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: 18,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {open ? "✕" : "☰"}
+          </button>
           <div>
-            <Link
-              href="/admin"
-              className="font-semibold text-white hover:text-purple-300 text-lg"
-              onClick={() => setOpen(false)}
-            >
-              🛡️ Admin Terminal
-            </Link>
-            <p className="text-xs text-slate-500 mt-0.5">{staffLabel}</p>
+            <div style={{ fontWeight: 800, fontSize: "1.1rem", letterSpacing: "-0.02em" }}>
+              Union TMS
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>Admin Console</div>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              borderRadius: 999,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            👤 {staffLabel}
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "1px solid rgba(255,255,255,0.35)",
+              color: "#fff",
+              borderRadius: 10,
+              padding: "8px 14px",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* Overlay */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            zIndex: 40,
+          }}
+        />
+      )}
+
+      {/* Drawer */}
+      <aside
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          height: "100vh",
+          width: 280,
+          background: "linear-gradient(180deg, #0f172a 0%, #134e4a 100%)",
+          color: "#fff",
+          zIndex: 45,
+          transform: open ? "translateX(0)" : "translateX(-105%)",
+          transition: "transform 0.25s ease",
+          boxShadow: open ? "8px 0 32px rgba(0,0,0,0.35)" : "none",
+          display: "flex",
+          flexDirection: "column",
+          padding: "1.25rem",
+        }}
+      >
+        <div style={{ marginBottom: "1.75rem", paddingTop: "0.5rem" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #14b8a6, #0ea5e9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: 18,
+              marginBottom: 12,
+            }}
+          >
+            UT
+          </div>
+          <div style={{ fontWeight: 800, fontSize: "1.2rem" }}>Union TMS</div>
+          <div style={{ fontSize: 13, color: "#99f6e4", marginTop: 2 }}>
+            Transaction Management
+          </div>
+        </div>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
           {navItems.map((item) => {
-            const active = isActive(item.href)
+            const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition ${
-                  active
-                    ? 'bg-purple-600/20 text-purple-200 border border-purple-700/40'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  color: "#fff",
+                  fontWeight: 600,
+                  background: active
+                    ? "linear-gradient(135deg, rgba(20,184,166,0.45), rgba(14,165,233,0.35))"
+                    : "transparent",
+                  border: active
+                    ? "1px solid rgba(45,212,191,0.5)"
+                    : "1px solid transparent",
+                  boxShadow: active ? "0 4px 16px rgba(20,184,166,0.2)" : "none",
+                }}
               >
-                <span className="text-base">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
+                <span
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: active ? item.color : "rgba(255,255,255,0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 16,
+                  }}
+                >
+                  {item.icon}
+                </span>
+                {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
 
-        <div className="p-3 border-t border-slate-800">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full text-sm px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-          >
-            Log out
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={logout}
+          style={{
+            marginTop: "auto",
+            padding: "12px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(239,68,68,0.2)",
+            color: "#fecaca",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Sign out
+        </button>
       </aside>
-
-      {/* Spacer so page content is not under the floating buttons */}
-      <div className="h-16" />
     </>
-  )
+  );
 }
