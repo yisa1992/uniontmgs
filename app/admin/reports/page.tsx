@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, type MouseEvent } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { Transaction } from "@/lib/types";
 
 export default function AdminReportsPage() {
@@ -12,31 +12,6 @@ export default function AdminReportsPage() {
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState("");
-
-  async function handleDelete(id: string, e?: MouseEvent) {
-    e?.stopPropagation();
-    if (!confirm("Delete this transaction? This cannot be undone.")) return;
-    setDeletingId(id);
-    setDeleteError("");
-    try {
-      const res = await fetch(`/api/transactions?id=${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDeleteError(data.error || "Failed to delete");
-        return;
-      }
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-      if (selectedTx?.id === id) setSelectedTx(null);
-    } catch {
-      setDeleteError("Network error while deleting");
-    } finally {
-      setDeletingId(null);
-    }
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,11 +85,6 @@ export default function AdminReportsPage() {
   return (
     <div>
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
-        {deleteError && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-            {deleteError}
-          </div>
-        )}
         <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
           Transaction Reports
         </h1>
@@ -263,7 +233,7 @@ export default function AdminReportsPage() {
           </button>
         </div>
 
-        <div className="card table-wrap">
+        <div className="card table-wrap" style={{ overflowX: "auto", width: "100%" }}>
           {loading ? (
             <p style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
               Loading…
@@ -273,22 +243,21 @@ export default function AdminReportsPage() {
               No transactions found
             </p>
           ) : (
-            <table>
+            <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th>Date / Time</th>
-                  <th>Table</th>
-                  <th>Waiter</th>
-                  <th>FT Number</th>
-                  <th>Total</th>
-                  <th>Restaurant</th>
-                  <th>Cafe</th>
-                  <th>Butchery</th>
-                  <th>Tip</th>
-                  <th>Cashier</th>
-                  <th>Sender</th>
-                  <th>Receiver</th>
-                  <th>Actions</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Date / Time</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Table</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Waiter</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>FT Number</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Total</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Restaurant</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Cafe</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Butchery</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Tip</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Cashier</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Sender</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Receiver</th>
                 </tr>
               </thead>
               <tbody>
@@ -324,17 +293,6 @@ export default function AdminReportsPage() {
                       <td>{t.cashierName}</td>
                       <td>{t.senderName || "—"}</td>
                       <td>{t.receiverName || "—"}</td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="btn btn-danger"
-                          style={{ padding: "0.3rem 0.65rem", fontSize: "0.75rem" }}
-                          disabled={deletingId === t.id}
-                          onClick={(e) => handleDelete(t.id, e)}
-                        >
-                          {deletingId === t.id ? "…" : "Delete"}
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}
@@ -422,24 +380,13 @@ export default function AdminReportsPage() {
                   </div>
                 ))}
               </div>
-              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem" }}>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  style={{ flex: 1 }}
-                  disabled={deletingId === selectedTx.id}
-                  onClick={() => handleDelete(selectedTx.id)}
-                >
-                  {deletingId === selectedTx.id ? "Deleting…" : "Delete transaction"}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  style={{ flex: 1 }}
-                  onClick={() => setSelectedTx(null)}
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: "1.25rem", width: "100%" }}
+                onClick={() => setSelectedTx(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         )}

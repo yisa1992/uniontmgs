@@ -20,7 +20,6 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
 
   // Form fields
   const [username, setUsername] = useState("");
@@ -112,11 +111,7 @@ export default function AdminUsersPage() {
           setError(data.error || "Create failed");
           return;
         }
-        if (role === "waiter") {
-          setSuccess(`Waiter "${fullName}" registered successfully. They can be selected on the cashier transaction form.`);
-        } else {
-          setSuccess(`${role.charAt(0).toUpperCase() + role.slice(1)} "${fullName}" created successfully.`);
-        }
+        setSuccess("User created successfully");
       }
       setShowForm(false);
       loadUsers();
@@ -160,116 +155,29 @@ export default function AdminUsersPage() {
             {success}
           </div>
         )}
-        {error && !showForm && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-            {error}
-          </div>
-        )}
 
-        {/* Role summary — especially waiters */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: "0.75rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          {(
-            [
-              ["all", "All users", users.length],
-              ["waiter", "Waiters", users.filter((u) => u.role === "waiter").length],
-              ["cashier", "Cashiers", users.filter((u) => u.role === "cashier").length],
-              ["auditor", "Auditors", users.filter((u) => u.role === "auditor").length],
-              ["admin", "Admins", users.filter((u) => u.role === "admin").length],
-            ] as [Role | "all", string, number][]
-          ).map(([key, label, count]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRoleFilter(key)}
-              className="card"
-              style={{
-                padding: "0.85rem 1rem",
-                textAlign: "left",
-                cursor: "pointer",
-                border:
-                  roleFilter === key
-                    ? "2px solid var(--primary)"
-                    : "1px solid var(--border)",
-                background: roleFilter === key ? "#f0fdfa" : "white",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                }}
-              >
-                {label}
-              </div>
-              <div style={{ fontSize: "1.35rem", fontWeight: 700, marginTop: "0.2rem" }}>
-                {count}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {roleFilter === "waiter" && (
-          <div className="alert alert-info" style={{ marginBottom: "1rem" }}>
-            Showing registered <strong>waiters</strong> only. Create a user with role
-            <strong> Waiter</strong> to add more. Waiters appear in the cashier form when
-            recording a transaction.
-          </div>
-        )}
-
-        <div className="card table-wrap">
+        <div className="card table-wrap" style={{ overflowX: "auto", width: "100%" }}>
           {loading ? (
             <p style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
               Loading…
             </p>
           ) : (
-            <table>
+            <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
               <thead>
                 <tr>
-                  <th>Username</th>
-                  <th>Full Name</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Username</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Full Name</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Role</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Status</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Created</th>
+                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users
-                  .filter((u) => roleFilter === "all" || u.role === roleFilter)
-                  .map((u) => (
-                  <tr
-                    key={u.id}
-                    style={
-                      u.role === "waiter"
-                        ? { background: "#f0fdfa" }
-                        : undefined
-                    }
-                  >
+                {users.map((u) => (
+                  <tr key={u.id}>
                     <td style={{ fontWeight: 600 }}>{u.username}</td>
-                    <td>
-                      {u.fullName}
-                      {u.role === "waiter" && (
-                        <span
-                          style={{
-                            marginLeft: "0.4rem",
-                            fontSize: "0.7rem",
-                            color: "var(--primary)",
-                            fontWeight: 600,
-                          }}
-                        >
-                          (waiter)
-                        </span>
-                      )}
-                    </td>
+                    <td>{u.fullName}</td>
                     <td>
                       <span className={`badge badge-${u.role}`}>{u.role}</span>
                     </td>
