@@ -302,7 +302,7 @@ export default function CashierPage() {
         setFieldsLocked(false);
       } else if (!filledFt) {
         setError(
-          "FT / transaction number not found in the picture. Unlock and type the transaction number from the receipt, then save."
+          "FT / transaction number not found in the picture. You can leave it empty (auto-generated) or type it from the receipt."
         );
         setFieldsLocked(false);
       }
@@ -462,12 +462,9 @@ export default function CashierPage() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    if (ftExists) {
+    // FT is optional — only block if user entered one that already exists
+    if (ftNumber.trim() && ftExists) {
       setError("FT number already exists in the system");
-      return;
-    }
-    if (!ftNumber.trim()) {
-      setError("FT / transaction number is required");
       return;
     }
     if (!tableNumber.trim()) {
@@ -805,7 +802,7 @@ export default function CashierPage() {
                   ✨ Scanned Details
                 </h3>
                 <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#047857" }}>
-                  FT number, sender &amp; receiver are captured automatically from the photo — no need to type them.
+                  FT number is optional (auto-filled from photo/QR if found). Table, waiter, and amounts are required.
                 </p>
               </div>
               <button
@@ -859,7 +856,7 @@ export default function CashierPage() {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  {ftNumber || "Waiting for scan…"}
+                  {ftNumber || "Optional — auto if empty"}
                 </div>
                 {ftExists && (
                   <p style={{ color: "#b91c1c", fontSize: "0.75rem", margin: "0.35rem 0 0", fontWeight: 600 }}>
@@ -1095,17 +1092,17 @@ export default function CashierPage() {
               fontSize: "1.1rem",
               fontWeight: 700,
               borderRadius: 14,
-              background: submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId
+              background: submitting || (ftNumber.trim() && ftExists) || !balanced || !totalAmount || !tableNumber || !waiterId
                 ? undefined
                 : "linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%)",
-              boxShadow: submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId
+              boxShadow: submitting || (ftNumber.trim() && ftExists) || !balanced || !totalAmount || !tableNumber || !waiterId
                 ? "none"
                 : "0 8px 28px rgba(16, 185, 129, 0.35)",
               border: "none",
               letterSpacing: "0.01em",
               transition: "transform 0.15s ease, box-shadow 0.15s ease",
             }}
-            disabled={submitting || ftExists || !balanced || !ftNumber || !totalAmount || !tableNumber || !waiterId}
+            disabled={submitting || (!!ftNumber.trim() && ftExists) || !balanced || !totalAmount || !tableNumber || !waiterId}
           >
             {submitting ? "Saving…" : "✓ Submit Transaction"}
           </button>

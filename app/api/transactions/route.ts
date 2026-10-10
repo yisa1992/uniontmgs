@@ -53,9 +53,9 @@ export async function POST(req: NextRequest) {
       waiterName,
     } = body;
 
-    if (!ftNumber || totalAmount == null) {
+    if (totalAmount == null || totalAmount === "") {
       return NextResponse.json(
-        { error: "Transaction number (FT) and total amount required" },
+        { error: "Total amount is required" },
         { status: 400 }
       );
     }
@@ -87,7 +87,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (await getTransactionByFt(String(ftNumber))) {
+    // FT / transaction number is optional — auto-generate if missing
+    let finalFt = String(ftNumber || "").trim();
+    if (!finalFt) {
+      finalFt = `TXN-${Date.now()}`;
+    } else if (await getTransactionByFt(finalFt)) {
       return NextResponse.json(
         { error: "This transaction / FT number already exists in the system" },
         { status: 409 }
@@ -100,7 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     const tx = await createTransaction({
-      ftNumber: String(ftNumber).trim(),
+      ftNumber: finalFt,
       totalAmount: total,
       restaurantAmount: r,
       cafeAmount: c,
