@@ -1,33 +1,42 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import type { Transaction } from "@/lib/types";
-import type React from "react";
 
-const TH: React.CSSProperties = {
-  display: "table-cell",
-  padding: "12px 16px",
+type TxExtra = Transaction & { tableNumber?: string; waiterName?: string };
+
+const COLS =
+  "140px 70px 110px 160px 90px 100px 80px 90px 70px 120px 100px 100px 90px";
+
+const headerCell: CSSProperties = {
+  padding: "12px 10px",
   background: "#f1f5f9",
-  textAlign: "left",
-  whiteSpace: "nowrap",
-  fontWeight: 600,
-  fontSize: 12,
+  fontWeight: 700,
+  fontSize: 11,
   color: "#64748b",
   textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  borderBottom: "1px solid #e2e8f0",
-  verticalAlign: "middle",
+  letterSpacing: "0.03em",
+  borderBottom: "2px solid #e2e8f0",
+  whiteSpace: "nowrap",
 };
 
-const TD: React.CSSProperties = {
-  display: "table-cell",
-  padding: "12px 16px",
+const cell: CSSProperties = {
+  padding: "12px 10px",
+  fontSize: 13,
   borderBottom: "1px solid #e2e8f0",
   whiteSpace: "nowrap",
-  verticalAlign: "middle",
-  fontSize: 14,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
+const inputStyle: CSSProperties = {
+  padding: "10px 12px",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  fontSize: 14,
+  background: "#fff",
+  minWidth: 130,
+};
 
 export default function AdminReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -37,7 +46,7 @@ export default function AdminReportsPage() {
   const [search, setSearch] = useState("");
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedTx, setSelectedTx] = useState<TxExtra | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,7 +73,7 @@ export default function AdminReportsPage() {
   const waiters = Array.from(
     new Set(
       transactions
-        .map((t) => (t as { waiterName?: string }).waiterName)
+        .map((t) => (t as TxExtra).waiterName)
         .filter(Boolean) as string[]
     )
   ).sort();
@@ -73,7 +82,7 @@ export default function AdminReportsPage() {
   ).sort();
 
   const filtered = transactions.filter((t) => {
-    const extra = t as { tableNumber?: string; waiterName?: string };
+    const extra = t as TxExtra;
     if (waiterFilter && (extra.waiterName || "") !== waiterFilter) return false;
     if (cashierFilter && t.cashierName !== cashierFilter) return false;
     if (!search) return true;
@@ -100,349 +109,380 @@ export default function AdminReportsPage() {
     { total: 0, restaurant: 0, cafe: 0, butchery: 0, tip: 0, count: 0 }
   );
 
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this transaction?")) return;
+    const res = await fetch(`/api/transactions?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      setTransactions((prev) => prev.filter((x) => x.id !== id));
+      if (selectedTx?.id === id) setSelectedTx(null);
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Delete failed");
+    }
+  }
+
   if (loading && transactions.length === 0) {
     return (
-      <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)" }}>
+      <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
         Loading…
       </div>
     );
   }
 
   return (
-    <div>
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
-          Transaction Reports
-        </h1>
-        <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
-          Every transaction by date, time, waiter, cashier — with cafe, restaurant,
-          butchery and tip breakdown
-        </p>
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
+      <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem", fontWeight: 700 }}>
+        Transaction Reports
+      </h1>
+      <p style={{ color: "#64748b", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
+        Every transaction by date, time, waiter, cashier — with cafe, restaurant,
+        butchery and tip breakdown
+      </p>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: "1rem",
-            marginBottom: "1.5rem",
-          }}
-        >
-          {[
-            { label: "Transactions", value: totals.count, color: "#1e40af" },
-            {
-              label: "Total Amount",
-              value: `${totals.total.toLocaleString()} ETB`,
-              color: "#059669",
-            },
-            {
-              label: "Restaurant",
-              value: `${totals.restaurant.toLocaleString()} ETB`,
-              color: "#7c3aed",
-            },
-            {
-              label: "Cafe",
-              value: `${totals.cafe.toLocaleString()} ETB`,
-              color: "#d97706",
-            },
-            {
-              label: "Butchery",
-              value: `${totals.butchery.toLocaleString()} ETB`,
-              color: "#dc2626",
-            },
-            {
-              label: "Tips",
-              value: `${totals.tip.toLocaleString()} ETB`,
-              color: "#0891b2",
-            },
-          ].map((c) => (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        {(
+          [
+            ["TRANSACTIONS", String(totals.count), "#0f172a"],
+            ["TOTAL AMOUNT", `${totals.total.toLocaleString()} ETB`, "#059669"],
+            ["RESTAURANT", `${totals.restaurant.toLocaleString()} ETB`, "#7c3aed"],
+            ["CAFE", `${totals.cafe.toLocaleString()} ETB`, "#d97706"],
+            ["BUTCHERY", `${totals.butchery.toLocaleString()} ETB`, "#dc2626"],
+            ["TIPS", `${totals.tip.toLocaleString()} ETB`, "#0f766e"],
+          ] as [string, string, string][]
+        ).map(([label, value, color]) => (
+          <div key={label} style={{ minWidth: 120 }}>
             <div
-              key={c.label}
-              className="card"
-              style={{ padding: "1rem 1.15rem" }}
-            >
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {c.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: 700,
-                  color: c.color,
-                  marginTop: "0.25rem",
-                }}
-              >
-                {c.value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          className="card"
-          style={{
-            padding: "1rem 1.25rem",
-            marginBottom: "1.25rem",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            alignItems: "flex-end",
-          }}
-        >
-          <div style={{ flex: "1 1 130px" }}>
-            <label className="label">From Date</label>
-            <input
-              className="input"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: "1 1 130px" }}>
-            <label className="label">To Date</label>
-            <input
-              className="input"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: "1 1 140px" }}>
-            <label className="label">Waiter</label>
-            <select
-              className="input"
-              value={waiterFilter}
-              onChange={(e) => setWaiterFilter(e.target.value)}
-            >
-              <option value="">All waiters</option>
-              {waiters.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: "1 1 140px" }}>
-            <label className="label">Cashier</label>
-            <select
-              className="input"
-              value={cashierFilter}
-              onChange={(e) => setCashierFilter(e.target.value)}
-            >
-              <option value="">All cashiers</option>
-              {cashiers.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: "2 1 180px" }}>
-            <label className="label">Search</label>
-            <input
-              className="input"
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="FT, table, sender, receiver…"
-            />
-          </div>
-          <button className="btn btn-primary" onClick={load}>
-            Apply Filters
-          </button>
-        </div>
-
-        <div className="card table-wrap" style={{ overflowX: "auto", width: "100%" }}>
-          {loading ? (
-            <p style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-              Loading…
-            </p>
-          ) : filtered.length === 0 ? (
-            <p style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-              No transactions found
-            </p>
-          ) : (
-            <table
               style={{
-                display: "table",
-                width: "100%",
-                borderCollapse: "collapse",
-                minWidth: 1100,
-                tableLayout: "auto",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#64748b",
+                letterSpacing: "0.04em",
               }}
             >
-              <thead style={{ display: "table-header-group" }}>
-                <tr style={{ display: "table-row" }}>
-                  <th style={TH}>Date / Time</th>
-                  <th style={TH}>Table</th>
-                  <th style={TH}>Waiter</th>
-                  <th style={TH}>FT Number</th>
-                  <th style={TH}>Total</th>
-                  <th style={TH}>Restaurant</th>
-                  <th style={TH}>Cafe</th>
-                  <th style={TH}>Butchery</th>
-                  <th style={TH}>Tip</th>
-                  <th style={TH}>Cashier</th>
-                  <th style={TH}>Sender</th>
-                  <th style={TH}>Receiver</th>
-                  <th style={TH}>Actions</th>
-                </tr>
-              </thead>
-              <tbody style={{ display: "table-row-group" }}>
-                {filtered.map((t) => {
-                  const extra = t as { tableNumber?: string; waiterName?: string };
-                  return (
-                    <tr
-                      key={t.id}
-                      style={{ display: "table-row", cursor: "pointer" }}
-                      onClick={() => setSelectedTx(t)}
-                    >
-                      <td style={TD}>
-                        {new Date(t.createdAt).toLocaleDateString()}
-                        <br />
-                        <span style={{ fontSize: 12, color: "#64748b" }}>
-                          {new Date(t.createdAt).toLocaleTimeString()}
-                        </span>
-                      </td>
-                      <td style={{ ...TD, fontWeight: 700 }}>{extra.tableNumber || "—"}</td>
-                      <td style={TD}>{extra.waiterName || "—"}</td>
-                      <td style={{ ...TD, fontWeight: 600, fontFamily: "monospace" }}>{t.ftNumber}</td>
-                      <td style={{ ...TD, fontWeight: 600 }}>{t.totalAmount.toLocaleString()}</td>
-                      <td style={TD}>{t.restaurantAmount.toLocaleString()}</td>
-                      <td style={TD}>{t.cafeAmount.toLocaleString()}</td>
-                      <td style={TD}>{t.butcheryAmount.toLocaleString()}</td>
-                      <td style={TD}>{t.tip.toLocaleString()}</td>
-                      <td style={TD}>{t.cashierName}</td>
-                      <td style={TD}>{t.senderName || "—"}</td>
-                      <td style={TD}>{t.receiverName || "—"}</td>
-                      <td style={TD} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="btn btn-danger"
-                          style={{ padding: "6px 12px", fontSize: 12 }}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!confirm("Delete this transaction?")) return;
-                            const res = await fetch(
-                              `/api/transactions?id=${encodeURIComponent(t.id)}`,
-                              { method: "DELETE" }
-                            );
-                            if (res.ok) {
-                              setTransactions((prev) => prev.filter((x) => x.id !== t.id));
-                            } else {
-                              const d = await res.json().catch(() => ({}));
-                              alert(d.error || "Delete failed");
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+              {label}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
 
-        {selectedTx && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.45)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 100,
-              padding: "1rem",
-            }}
-            onClick={() => setSelectedTx(null)}
-          >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+          alignItems: "flex-end",
+          marginBottom: "1.25rem",
+          padding: "1rem",
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>
+            FROM DATE
+          </div>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>
+            TO DATE
+          </div>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>
+            WAITER
+          </div>
+          <select value={waiterFilter} onChange={(e) => setWaiterFilter(e.target.value)} style={inputStyle}>
+            <option value="">All waiters</option>
+            {waiters.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>
+            CASHIER
+          </div>
+          <select value={cashierFilter} onChange={(e) => setCashierFilter(e.target.value)} style={inputStyle}>
+            <option value="">All cashiers</option>
+            {cashiers.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: "1 1 160px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>
+            SEARCH
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="FT, table, sender…"
+            style={{ ...inputStyle, width: "100%" }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          style={{
+            padding: "10px 18px",
+            background: "#0f766e",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Apply Filters
+        </button>
+      </div>
+
+      {/* CSS GRID — not HTML table */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+          overflowX: "auto",
+        }}
+      >
+        {loading ? (
+          <p style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>Loading…</p>
+        ) : filtered.length === 0 ? (
+          <p style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
+            No transactions found
+          </p>
+        ) : (
+          <div style={{ minWidth: 1200 }}>
             <div
-              className="card"
-              style={{ maxWidth: 480, width: "100%", padding: "1.5rem" }}
-              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: "grid",
+                gridTemplateColumns: COLS,
+                background: "#f1f5f9",
+              }}
             >
-              <h2 style={{ margin: "0 0 1rem", fontSize: "1.15rem" }}>
-                Transaction Detail
-              </h2>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "0.75rem 1rem",
-                  fontSize: "0.9rem",
-                }}
-              >
-                {(
-                  [
-                    ["Date", new Date(selectedTx.createdAt).toLocaleString()],
-                    [
-                      "Table",
-                      (selectedTx as { tableNumber?: string }).tableNumber || "—",
-                    ],
-                    [
-                      "Waiter",
-                      (selectedTx as { waiterName?: string }).waiterName || "—",
-                    ],
-                    ["FT Number", selectedTx.ftNumber],
-                    [
-                      "Total",
-                      `${selectedTx.totalAmount.toLocaleString()} ETB`,
-                    ],
-                    [
-                      "Restaurant",
-                      `${selectedTx.restaurantAmount.toLocaleString()} ETB`,
-                    ],
-                    [
-                      "Cafe",
-                      `${selectedTx.cafeAmount.toLocaleString()} ETB`,
-                    ],
-                    [
-                      "Butchery",
-                      `${selectedTx.butcheryAmount.toLocaleString()} ETB`,
-                    ],
-                    ["Tip", `${selectedTx.tip.toLocaleString()} ETB`],
-                    ["Cashier", selectedTx.cashierName],
-                    ["Sender", selectedTx.senderName || "—"],
-                    ["Receiver", selectedTx.receiverName || "—"],
-                  ] as [string, string][]
-                ).map(([label, value]) => (
-                  <div key={label}>
-                    <div
+              {[
+                "Date / Time",
+                "Table",
+                "Waiter",
+                "FT Number",
+                "Total",
+                "Restaurant",
+                "Cafe",
+                "Butchery",
+                "Tip",
+                "Cashier",
+                "Sender",
+                "Receiver",
+                "Actions",
+              ].map((h) => (
+                <div key={h} style={headerCell}>
+                  {h}
+                </div>
+              ))}
+            </div>
+
+            {filtered.map((raw) => {
+              const t = raw as TxExtra;
+              return (
+                <div
+                  key={t.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedTx(t)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setSelectedTx(t);
+                  }}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: COLS,
+                    cursor: "pointer",
+                    background: "#fff",
+                  }}
+                >
+                  <div style={cell}>
+                    {new Date(t.createdAt).toLocaleDateString()}
+                    <br />
+                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                      {new Date(t.createdAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div style={{ ...cell, fontWeight: 700 }}>{t.tableNumber || "—"}</div>
+                  <div style={cell}>{t.waiterName || "—"}</div>
+                  <div style={{ ...cell, fontFamily: "monospace", fontWeight: 600 }}>
+                    {t.ftNumber}
+                  </div>
+                  <div style={{ ...cell, fontWeight: 600 }}>
+                    {t.totalAmount.toLocaleString()}
+                  </div>
+                  <div style={cell}>{t.restaurantAmount.toLocaleString()}</div>
+                  <div style={cell}>{t.cafeAmount.toLocaleString()}</div>
+                  <div style={cell}>{t.butcheryAmount.toLocaleString()}</div>
+                  <div style={cell}>{t.tip.toLocaleString()}</div>
+                  <div style={cell}>{t.cashierName}</div>
+                  <div style={cell}>{t.senderName || "—"}</div>
+                  <div style={cell}>{t.receiverName || "—"}</div>
+                  <div style={cell} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(t.id)}
                       style={{
-                        fontSize: "0.7rem",
-                        color: "var(--muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
+                        padding: "6px 12px",
+                        background: "#dc2626",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
                       }}
                     >
-                      {label}
-                    </div>
-                    <div style={{ fontWeight: 600 }}>{value}</div>
+                      Delete
+                    </button>
                   </div>
-                ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {selectedTx && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}
+          onClick={() => setSelectedTx(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 480,
+              width: "100%",
+              padding: "1.5rem",
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: "0 0 1rem", fontSize: "1.15rem" }}>Transaction Detail</h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.75rem 1rem",
+                fontSize: "0.9rem",
+              }}
+            >
+              {(
+                [
+                  ["Date", new Date(selectedTx.createdAt).toLocaleString()],
+                  ["Table", selectedTx.tableNumber || "—"],
+                  ["Waiter", selectedTx.waiterName || "—"],
+                  ["FT Number", selectedTx.ftNumber],
+                  ["Total", `${selectedTx.totalAmount.toLocaleString()} ETB`],
+                  ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],
+                  ["Cafe", `${selectedTx.cafeAmount.toLocaleString()} ETB`],
+                  ["Butchery", `${selectedTx.butcheryAmount.toLocaleString()} ETB`],
+                  ["Tip", `${selectedTx.tip.toLocaleString()} ETB`],
+                  ["Cashier", selectedTx.cashierName],
+                  ["Sender", selectedTx.senderName || "—"],
+                  ["Receiver", selectedTx.receiverName || "—"],
+                ] as [string, string][]
+              ).map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>
+                    {label}
+                  </div>
+                  <div style={{ fontWeight: 600 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {selectedTx.imageData ? (
+              <div style={{ marginTop: "1.25rem" }}>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>
+                  Receipt photo
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedTx.imageData}
+                  alt="Receipt"
+                  style={{
+                    width: "100%",
+                    maxHeight: 320,
+                    objectFit: "contain",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    background: "#f8fafc",
+                  }}
+                />
               </div>
+            ) : (
+              <p style={{ marginTop: "1rem", fontSize: 14, color: "#64748b" }}>
+                No receipt photo saved for this transaction.
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: 12, marginTop: "1.25rem" }}>
               <button
-                className="btn btn-primary"
-                style={{ marginTop: "1.25rem", width: "100%" }}
+                type="button"
+                onClick={() => handleDelete(selectedTx.id)}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedTx(null)}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#0f766e",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
               >
                 Close
               </button>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }

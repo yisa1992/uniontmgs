@@ -240,38 +240,28 @@ export default function AuditorPage() {
               <h2 style={{ margin: "0 0 1rem", fontSize: "1.2rem" }}>
                 Transaction Detail
               </h2>
-              <table style={{ width: "100%", fontSize: "0.9rem" }}>
-                <tbody>
-                  {[
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem 1rem", fontSize: "0.9rem" }}>
+                {(
+                  [
                     ["Table Number", (selectedTx as { tableNumber?: string }).tableNumber || "—"],
                     ["Waiter", (selectedTx as { waiterName?: string }).waiterName || "—"],
                     ["FT Number", selectedTx.ftNumber],
-                    ["Total Amount", `${selectedTx.totalAmount.toLocaleString()} ETB`],
+                    ["Total", `${selectedTx.totalAmount.toLocaleString()} ETB`],
                     ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],
                     ["Cafe", `${selectedTx.cafeAmount.toLocaleString()} ETB`],
                     ["Butchery", `${selectedTx.butcheryAmount.toLocaleString()} ETB`],
                     ["Tip", `${selectedTx.tip.toLocaleString()} ETB`],
+                    ["Cashier", selectedTx.cashierName],
                     ["Sender", selectedTx.senderName || "—"],
                     ["Receiver", selectedTx.receiverName || "—"],
-                    ["Cashier", selectedTx.cashierName],
-                    ["Date", new Date(selectedTx.createdAt).toLocaleString()],
-                  ].map(([label, val]) => (
-                    <tr key={label}>
-                      <td
-                        style={{
-                          padding: "0.5rem 0",
-                          color: "var(--muted)",
-                          fontWeight: 600,
-                          width: "40%",
-                        }}
-                      >
-                        {label}
-                      </td>
-                      <td style={{ padding: "0.5rem 0" }}>{val}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ] as [string, string][]
+                ).map(([label, val]) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontWeight: 600 }}>{val}</div>
+                  </div>
+                ))}
+              </div>
               {selectedTx.imageData && (
                 <div style={{ marginTop: "1rem" }}>
                   <img
