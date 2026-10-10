@@ -2,6 +2,32 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { Transaction } from "@/lib/types";
+import type React from "react";
+
+const TH: React.CSSProperties = {
+  display: "table-cell",
+  padding: "12px 16px",
+  background: "#f1f5f9",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+  fontWeight: 600,
+  fontSize: 12,
+  color: "#64748b",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  borderBottom: "1px solid #e2e8f0",
+  verticalAlign: "middle",
+};
+
+const TD: React.CSSProperties = {
+  display: "table-cell",
+  padding: "12px 16px",
+  borderBottom: "1px solid #e2e8f0",
+  whiteSpace: "nowrap",
+  verticalAlign: "middle",
+  fontSize: 14,
+};
+
 
 export default function AdminReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -243,56 +269,82 @@ export default function AdminReportsPage() {
               No transactions found
             </p>
           ) : (
-            <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Date / Time</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Table</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Waiter</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>FT Number</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Total</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Restaurant</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Cafe</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Butchery</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Tip</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Cashier</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Sender</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Receiver</th>
+            <table
+              style={{
+                display: "table",
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 1100,
+                tableLayout: "auto",
+              }}
+            >
+              <thead style={{ display: "table-header-group" }}>
+                <tr style={{ display: "table-row" }}>
+                  <th style={TH}>Date / Time</th>
+                  <th style={TH}>Table</th>
+                  <th style={TH}>Waiter</th>
+                  <th style={TH}>FT Number</th>
+                  <th style={TH}>Total</th>
+                  <th style={TH}>Restaurant</th>
+                  <th style={TH}>Cafe</th>
+                  <th style={TH}>Butchery</th>
+                  <th style={TH}>Tip</th>
+                  <th style={TH}>Cashier</th>
+                  <th style={TH}>Sender</th>
+                  <th style={TH}>Receiver</th>
+                  <th style={TH}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody style={{ display: "table-row-group" }}>
                 {filtered.map((t) => {
                   const extra = t as { tableNumber?: string; waiterName?: string };
                   return (
                     <tr
                       key={t.id}
-                      style={{ cursor: "pointer" }}
+                      style={{ display: "table-row", cursor: "pointer" }}
                       onClick={() => setSelectedTx(t)}
                     >
-                      <td style={{ whiteSpace: "nowrap" }}>
+                      <td style={TD}>
                         {new Date(t.createdAt).toLocaleDateString()}
                         <br />
-                        <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>
                           {new Date(t.createdAt).toLocaleTimeString()}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700 }}>
-                        {extra.tableNumber || "—"}
+                      <td style={{ ...TD, fontWeight: 700 }}>{extra.tableNumber || "—"}</td>
+                      <td style={TD}>{extra.waiterName || "—"}</td>
+                      <td style={{ ...TD, fontWeight: 600, fontFamily: "monospace" }}>{t.ftNumber}</td>
+                      <td style={{ ...TD, fontWeight: 600 }}>{t.totalAmount.toLocaleString()}</td>
+                      <td style={TD}>{t.restaurantAmount.toLocaleString()}</td>
+                      <td style={TD}>{t.cafeAmount.toLocaleString()}</td>
+                      <td style={TD}>{t.butcheryAmount.toLocaleString()}</td>
+                      <td style={TD}>{t.tip.toLocaleString()}</td>
+                      <td style={TD}>{t.cashierName}</td>
+                      <td style={TD}>{t.senderName || "—"}</td>
+                      <td style={TD}>{t.receiverName || "—"}</td>
+                      <td style={TD} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          style={{ padding: "6px 12px", fontSize: 12 }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm("Delete this transaction?")) return;
+                            const res = await fetch(
+                              `/api/transactions?id=${encodeURIComponent(t.id)}`,
+                              { method: "DELETE" }
+                            );
+                            if (res.ok) {
+                              setTransactions((prev) => prev.filter((x) => x.id !== t.id));
+                            } else {
+                              const d = await res.json().catch(() => ({}));
+                              alert(d.error || "Delete failed");
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
                       </td>
-                      <td>{extra.waiterName || "—"}</td>
-                      <td style={{ fontWeight: 600, fontFamily: "monospace" }}>
-                        {t.ftNumber}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>
-                        {t.totalAmount.toLocaleString()}
-                      </td>
-                      <td>{t.restaurantAmount.toLocaleString()}</td>
-                      <td>{t.cafeAmount.toLocaleString()}</td>
-                      <td>{t.butcheryAmount.toLocaleString()}</td>
-                      <td>{t.tip.toLocaleString()}</td>
-                      <td>{t.cashierName}</td>
-                      <td>{t.senderName || "—"}</td>
-                      <td>{t.receiverName || "—"}</td>
                     </tr>
                   );
                 })}

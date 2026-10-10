@@ -193,3 +193,25 @@ table.data-table,
   background: #f0fdfa;
   color: var(--primary);
 }
+
+
+/* FINAL OVERRIDE — always last */
+html body table { display: table !important; border-collapse: collapse !important; width: 100% !important; }
+html body thead { display: table-header-group !important; }
+html body tbody { display: table-row-group !important; }
+html body tr { display: table-row !important; }
+html body th, html body td {
+  display: table-cell !important;
+  padding: 12px 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  vertical-align: middle !important;
+}
+html body th {
+  background: #f1f5f9 !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  color: #64748b !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+}

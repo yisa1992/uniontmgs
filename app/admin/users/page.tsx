@@ -2,6 +2,30 @@
 
 import { useEffect, useState } from "react";
 import type { Role } from "@/lib/types";
+import type React from "react";
+
+const TH: React.CSSProperties = {
+  display: "table-cell",
+  padding: "12px 16px",
+  background: "#f1f5f9",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+  fontWeight: 600,
+  fontSize: 12,
+  color: "#64748b",
+  textTransform: "uppercase",
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const TD: React.CSSProperties = {
+  display: "table-cell",
+  padding: "12px 16px",
+  borderBottom: "1px solid #e2e8f0",
+  whiteSpace: "nowrap",
+  fontSize: 14,
+  verticalAlign: "middle",
+};
+
 
 interface UserRow {
   id: string;
@@ -165,19 +189,19 @@ export default function AdminUsersPage() {
             <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
               <thead>
                 <tr>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Username</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Full Name</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Role</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Status</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Created</th>
-                  <th style={{ padding: "0.75rem 1rem", background: "#f1f5f9", textAlign: "left", whiteSpace: "nowrap" }}>Actions</th>
+                  <th style={TH}>Username</th>
+                  <th style={TH}>Full Name</th>
+                  <th style={TH}>Role</th>
+                  <th style={TH}>Status</th>
+                  <th style={TH}>Created</th>
+                  <th style={TH}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 600 }}>{u.username}</td>
-                    <td>{u.fullName}</td>
+                  <tr key={u.id} style={{ display: "table-row" }}>
+                    <td style={{ ...TD, fontWeight: 600 }}>{u.username}</td>
+                    <td style={TD}>{u.fullName}</td>
                     <td>
                       <span className={`badge badge-${u.role}`}>{u.role}</span>
                     </td>
