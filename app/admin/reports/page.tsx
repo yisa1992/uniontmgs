@@ -4,16 +4,13 @@ import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import type { Transaction } from "@/lib/types";
 
 type TxExtra = Transaction & { tableNumber?: string; waiterName?: string };
-
-const COLS =
-  "140px 70px 110px 160px 90px 100px 80px 90px 70px 120px 100px 100px 90px";
+type ReportTab = "all" | "restaurant" | "cafe" | "butchery";
 
 const headerCell: CSSProperties = {
   padding: "12px 10px",
-  background: "#f1f5f9",
   fontWeight: 700,
   fontSize: 11,
-  color: "#64748b",
+  color: "#334155",
   textTransform: "uppercase",
   letterSpacing: "0.03em",
   borderBottom: "2px solid #e2e8f0",
@@ -38,6 +35,16 @@ const inputStyle: CSSProperties = {
   minWidth: 130,
 };
 
+const footerCell: CSSProperties = {
+  padding: "14px 10px",
+  fontSize: 13,
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+  color: "#0f172a",
+  background: "linear-gradient(90deg, #ecfdf5, #e0f2fe)",
+  borderTop: "2px solid #0f766e",
+};
+
 export default function AdminReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +53,7 @@ export default function AdminReportsPage() {
   const [search, setSearch] = useState("");
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");
+  const [tab, setTab] = useState<ReportTab>("all");
   const [selectedTx, setSelectedTx] = useState<TxExtra | null>(null);
 
   const load = useCallback(async () => {
@@ -81,7 +89,7 @@ export default function AdminReportsPage() {
     new Set(transactions.map((t) => t.cashierName).filter(Boolean))
   ).sort();
 
-  const filtered = transactions.filter((t) => {
+  let filtered = transactions.filter((t) => {
     const extra = t as TxExtra;
     if (waiterFilter && (extra.waiterName || "") !== waiterFilter) return false;
     if (cashierFilter && t.cashierName !== cashierFilter) return false;
@@ -96,6 +104,15 @@ export default function AdminReportsPage() {
       extra.waiterName?.toLowerCase().includes(q)
     );
   });
+
+  // Category tabs: only rows with amount in that category
+  if (tab === "restaurant") {
+    filtered = filtered.filter((t) => (t.restaurantAmount || 0) > 0);
+  } else if (tab === "cafe") {
+    filtered = filtered.filter((t) => (t.cafeAmount || 0) > 0);
+  } else if (tab === "butchery") {
+    filtered = filtered.filter((t) => (t.butcheryAmount || 0) > 0);
+  }
 
   const totals = filtered.reduce(
     (acc, t) => ({
@@ -123,6 +140,20 @@ export default function AdminReportsPage() {
     }
   }
 
+  const colsAll =
+    "130px 60px 100px 150px 90px 95px 80px 90px 70px 110px 90px 90px 80px";
+  const colsCategory =
+    "130px 60px 100px 150px 110px 90px 110px 90px 90px 80px";
+
+  const gridCols = tab === "all" ? colsAll : colsCategory;
+
+  const tabMeta: { id: ReportTab; label: string; color: string; emoji: string }[] = [
+    { id: "all", label: "All", color: "#0f766e", emoji: "📋" },
+    { id: "restaurant", label: "Restaurant only", color: "#7c3aed", emoji: "🍽️" },
+    { id: "cafe", label: "Cafe only", color: "#d97706", emoji: "☕" },
+    { id: "butchery", label: "Butchery only", color: "#dc2626", emoji: "🥩" },
+  ];
+
   if (loading && transactions.length === 0) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
@@ -139,7 +170,7 @@ export default function AdminReportsPage() {
           borderRadius: 20,
           padding: "1.5rem 1.75rem",
           color: "#fff",
-          marginBottom: "1.5rem",
+          marginBottom: "1.25rem",
           boxShadow: "0 12px 40px rgba(14, 165, 233, 0.25)",
         }}
       >
@@ -147,10 +178,44 @@ export default function AdminReportsPage() {
           📊 Transaction Reports
         </h1>
         <p style={{ margin: 0, opacity: 0.92, fontSize: "0.95rem" }}>
-          Every transaction by date, time, waiter & cashier — cafe, restaurant, butchery & tips
+          All sales, or Restaurant / Cafe / Butchery only — with totals at the bottom
         </p>
       </div>
 
+      {/* Category tabs */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: "1.25rem",
+        }}
+      >
+        {tabMeta.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: "12px 18px",
+                borderRadius: 12,
+                border: active ? `2px solid ${t.color}` : "1px solid #e2e8f0",
+                background: active ? "#fff" : "#fff",
+                color: active ? t.color : "#475569",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: active ? `0 4px 16px ${t.color}33` : "0 2px 8px rgba(0,0,0,0.04)",
+              }}
+            >
+              {t.emoji} {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Summary cards */}
       <div
         style={{
           display: "flex",
@@ -168,35 +233,45 @@ export default function AdminReportsPage() {
             ["BUTCHERY", `${totals.butchery.toLocaleString()} ETB`, "#dc2626"],
             ["TIPS", `${totals.tip.toLocaleString()} ETB`, "#0f766e"],
           ] as [string, string, string][]
-        ).map(([label, value, color]) => (
-          <div
-            key={label}
-            style={{
-              minWidth: 140,
-              flex: "1 1 140px",
-              background: "#fff",
-              borderRadius: 16,
-              padding: "1rem 1.15rem",
-              border: "1px solid #e2e8f0",
-              boxShadow: "0 4px 14px rgba(15, 23, 42, 0.06)",
-              borderTop: `4px solid ${color}`,
-            }}
-          >
+        )
+          .filter(([label]) => {
+            if (tab === "restaurant") return ["TRANSACTIONS", "RESTAURANT", "TIPS"].includes(label);
+            if (tab === "cafe") return ["TRANSACTIONS", "CAFE", "TIPS"].includes(label);
+            if (tab === "butchery") return ["TRANSACTIONS", "BUTCHERY", "TIPS"].includes(label);
+            return true;
+          })
+          .map(([label, value, color]) => (
             <div
+              key={label}
               style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: "#64748b",
-                letterSpacing: "0.04em",
+                minWidth: 140,
+                flex: "1 1 140px",
+                background: "#fff",
+                borderRadius: 16,
+                padding: "1rem 1.15rem",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 4px 14px rgba(15, 23, 42, 0.06)",
+                borderTop: `4px solid ${color}`,
               }}
             >
-              {label}
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {label}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 6 }}>
+                {value}
+              </div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 6 }}>{value}</div>
-          </div>
-        ))}
+          ))}
       </div>
 
+      {/* Filters */}
       <div
         style={{
           display: "flex",
@@ -274,7 +349,7 @@ export default function AdminReportsPage() {
         </button>
       </div>
 
-      {/* CSS GRID — not HTML table */}
+      {/* Grid */}
       <div
         style={{
           background: "#fff",
@@ -288,40 +363,69 @@ export default function AdminReportsPage() {
           <p style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>Loading…</p>
         ) : filtered.length === 0 ? (
           <p style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
-            No transactions found
+            No transactions found for this view
           </p>
         ) : (
-          <div style={{ minWidth: 1200 }}>
+          <div style={{ minWidth: tab === "all" ? 1200 : 980 }}>
+            {/* Header */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: COLS,
+                gridTemplateColumns: gridCols,
                 background: "linear-gradient(90deg, #ecfdf5 0%, #e0f2fe 50%, #f3e8ff 100%)",
               }}
             >
-              {[
-                "Date / Time",
-                "Table",
-                "Waiter",
-                "FT Number",
-                "Total",
-                "Restaurant",
-                "Cafe",
-                "Butchery",
-                "Tip",
-                "Cashier",
-                "Sender",
-                "Receiver",
-                "Actions",
-              ].map((h) => (
+              {(tab === "all"
+                ? [
+                    "Date / Time",
+                    "Table",
+                    "Waiter",
+                    "FT Number",
+                    "Total",
+                    "Restaurant",
+                    "Cafe",
+                    "Butchery",
+                    "Tip",
+                    "Cashier",
+                    "Sender",
+                    "Receiver",
+                    "Actions",
+                  ]
+                : [
+                    "Date / Time",
+                    "Table",
+                    "Waiter",
+                    "FT Number",
+                    tab === "restaurant"
+                      ? "Restaurant"
+                      : tab === "cafe"
+                        ? "Cafe"
+                        : "Butchery",
+                    "Tip",
+                    "Cashier",
+                    "Sender",
+                    "Receiver",
+                    "Actions",
+                  ]
+              ).map((h) => (
                 <div key={h} style={headerCell}>
                   {h}
                 </div>
               ))}
             </div>
 
+            {/* Rows */}
             {filtered.map((raw) => {
               const t = raw as TxExtra;
+              const categoryAmount =
+                tab === "restaurant"
+                  ? t.restaurantAmount
+                  : tab === "cafe"
+                    ? t.cafeAmount
+                    : tab === "butchery"
+                      ? t.butcheryAmount
+                      : 0;
+
               return (
                 <div
                   key={t.id}
@@ -333,7 +437,7 @@ export default function AdminReportsPage() {
                   }}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: COLS,
+                    gridTemplateColumns: gridCols,
                     cursor: "pointer",
                     background: "#fff",
                   }}
@@ -350,13 +454,26 @@ export default function AdminReportsPage() {
                   <div style={{ ...cell, fontFamily: "monospace", fontWeight: 600 }}>
                     {t.ftNumber}
                   </div>
-                  <div style={{ ...cell, fontWeight: 600 }}>
-                    {t.totalAmount.toLocaleString()}
-                  </div>
-                  <div style={cell}>{t.restaurantAmount.toLocaleString()}</div>
-                  <div style={cell}>{t.cafeAmount.toLocaleString()}</div>
-                  <div style={cell}>{t.butcheryAmount.toLocaleString()}</div>
-                  <div style={cell}>{t.tip.toLocaleString()}</div>
+
+                  {tab === "all" ? (
+                    <>
+                      <div style={{ ...cell, fontWeight: 600 }}>
+                        {t.totalAmount.toLocaleString()}
+                      </div>
+                      <div style={cell}>{t.restaurantAmount.toLocaleString()}</div>
+                      <div style={cell}>{t.cafeAmount.toLocaleString()}</div>
+                      <div style={cell}>{t.butcheryAmount.toLocaleString()}</div>
+                      <div style={cell}>{t.tip.toLocaleString()}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ ...cell, fontWeight: 700, color: "#0f766e" }}>
+                        {categoryAmount.toLocaleString()}
+                      </div>
+                      <div style={cell}>{t.tip.toLocaleString()}</div>
+                    </>
+                  )}
+
                   <div style={cell}>{t.cashierName}</div>
                   <div style={cell}>{t.senderName || "—"}</div>
                   <div style={cell}>{t.receiverName || "—"}</div>
@@ -381,8 +498,128 @@ export default function AdminReportsPage() {
                 </div>
               );
             })}
+
+            {/* TOTALS FOOTER */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: gridCols,
+              }}
+            >
+              {tab === "all" ? (
+                <>
+                  <div style={{ ...footerCell, gridColumn: "1 / 5" }}>
+                    TOTAL ({totals.count} transactions)
+                  </div>
+                  <div style={{ ...footerCell, color: "#059669" }}>
+                    {totals.total.toLocaleString()}
+                  </div>
+                  <div style={{ ...footerCell, color: "#7c3aed" }}>
+                    {totals.restaurant.toLocaleString()}
+                  </div>
+                  <div style={{ ...footerCell, color: "#d97706" }}>
+                    {totals.cafe.toLocaleString()}
+                  </div>
+                  <div style={{ ...footerCell, color: "#dc2626" }}>
+                    {totals.butchery.toLocaleString()}
+                  </div>
+                  <div style={{ ...footerCell, color: "#0f766e" }}>
+                    {totals.tip.toLocaleString()}
+                  </div>
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                </>
+              ) : (
+                <>
+                  <div style={{ ...footerCell, gridColumn: "1 / 5" }}>
+                    TOTAL ({totals.count} transactions)
+                  </div>
+                  <div style={{ ...footerCell, color: "#0f766e" }}>
+                    {(tab === "restaurant"
+                      ? totals.restaurant
+                      : tab === "cafe"
+                        ? totals.cafe
+                        : totals.butchery
+                    ).toLocaleString()}{" "}
+                    ETB
+                  </div>
+                  <div style={{ ...footerCell, color: "#0f766e" }}>
+                    {totals.tip.toLocaleString()} tip
+                  </div>
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                  <div style={footerCell} />
+                </>
+              )}
+            </div>
           </div>
         )}
+      </div>
+
+      {/* Bottom summary strip */}
+      <div
+        style={{
+          marginTop: "1.25rem",
+          padding: "1.25rem 1.5rem",
+          borderRadius: 16,
+          background: "linear-gradient(135deg, #0f766e 0%, #0ea5e9 100%)",
+          color: "#fff",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "1.25rem",
+          justifyContent: "space-between",
+          boxShadow: "0 8px 28px rgba(15, 118, 110, 0.3)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>Page total · {tabMeta.find((x) => x.id === tab)?.label}</div>
+          <div style={{ fontSize: 28, fontWeight: 800 }}>
+            {tab === "all"
+              ? `${totals.total.toLocaleString()} ETB`
+              : tab === "restaurant"
+                ? `${totals.restaurant.toLocaleString()} ETB`
+                : tab === "cafe"
+                  ? `${totals.cafe.toLocaleString()} ETB`
+                  : `${totals.butchery.toLocaleString()} ETB`}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, opacity: 0.85 }}>Transactions</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{totals.count}</div>
+          </div>
+          {tab === "all" && (
+            <>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>Restaurant</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  {totals.restaurant.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>Cafe</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  {totals.cafe.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>Butchery</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  {totals.butchery.toLocaleString()}
+                </div>
+              </div>
+            </>
+          )}
+          <div>
+            <div style={{ fontSize: 11, opacity: 0.85 }}>Tips</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {totals.tip.toLocaleString()} ETB
+            </div>
+          </div>
+        </div>
       </div>
 
       {selectedTx && (
