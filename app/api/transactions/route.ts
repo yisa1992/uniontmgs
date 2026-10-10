@@ -4,6 +4,7 @@ import {
   getTransactions,
   createTransaction,
   getTransactionByFt,
+  deleteTransaction,
 } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -14,13 +15,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ft = searchParams.get("ft");
   if (ft) {
-    const existing = getTransactionByFt(ft);
+    const existing = await getTransactionByFt(ft);
     return NextResponse.json({
       exists: !!existing,
       transaction: existing || null,
     });
   }
-  let txs = getTransactions();
+  let txs = await getTransactions();
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const cashierId = searchParams.get("cashierId");
@@ -47,11 +48,26 @@ export async function POST(req: NextRequest) {
       senderName,
       receiverName,
       imageData,
+      tableNumber,
+      waiterId,
+      waiterName,
     } = body;
 
     if (!ftNumber || totalAmount == null) {
       return NextResponse.json(
-        { error: "FT number and total amount required" },
+        { error: "Transaction number (FT) and total amount required" },
+        { status: 400 }
+      );
+    }
+    if (!tableNumber || !String(tableNumber).trim()) {
+      return NextResponse.json(
+        { error: "Table number is required" },
+        { status: 400 }
+      );
+    }
+    if (!waiterId && !waiterName) {
+      return NextResponse.json(
+        { error: "Waiter is required" },
         { status: 400 }
       );
     }
@@ -71,14 +87,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (getTransactionByFt(String(ftNumber))) {
+    if (await getTransactionByFt(String(ftNumber))) {
       return NextResponse.json(
-        { error: "FT number already exists in the system" },
+        { error: "This transaction / FT number already exists in the system" },
         { status: 409 }
       );
     }
 
-    const tx = createTransaction({
+    let safeImage: string | undefined = imageData || undefined;
+    if (safeImage && safeImage.length > 1_500_000) {
+      safeImage = undefined;
+    }
+
+    const tx = await createTransaction({
       ftNumber: String(ftNumber).trim(),
       totalAmount: total,
       restaurantAmount: r,
@@ -87,14 +108,36 @@ export async function POST(req: NextRequest) {
       tip: t,
       senderName: senderName || "",
       receiverName: receiverName || "",
-      imageData: imageData || undefined,
+      imageData: safeImage,
       cashierId: session!.id,
       cashierName: session!.fullName,
+      tableNumber: String(tableNumber).trim(),
+      waiterId: waiterId ? String(waiterId) : "",
+      waiterName: waiterName ? String(waiterName) : "",
     });
 
     return NextResponse.json({ transaction: tx }, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed to create transaction";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Transaction id required" }, { status: 400 });
+    }
+    await deleteTransaction(id);
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to delete transaction";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

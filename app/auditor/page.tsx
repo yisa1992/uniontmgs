@@ -174,12 +174,18 @@ export default function AuditorPage() {
                   }}
                 >
                   <div>
+                    <div style={{ fontWeight: 700, marginBottom: "0.35rem", fontSize: "1.05rem" }}>
+                      Table {(n as { tableNumber?: string }).tableNumber || "—"}
+                    </div>
                     <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
                       {n.message}
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
                       {new Date(n.createdAt).toLocaleString()} · Cashier:{" "}
                       {n.cashierName}
+                      {(n as { waiterName?: string }).waiterName
+                        ? ` · Waiter: ${(n as { waiterName?: string }).waiterName}`
+                        : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -237,6 +243,8 @@ export default function AuditorPage() {
               <table style={{ width: "100%", fontSize: "0.9rem" }}>
                 <tbody>
                   {[
+                    ["Table Number", (selectedTx as { tableNumber?: string }).tableNumber || "—"],
+                    ["Waiter", (selectedTx as { waiterName?: string }).waiterName || "—"],
                     ["FT Number", selectedTx.ftNumber],
                     ["Total Amount", `${selectedTx.totalAmount.toLocaleString()} ETB`],
                     ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],
