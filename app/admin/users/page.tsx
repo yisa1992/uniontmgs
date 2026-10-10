@@ -20,6 +20,7 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
 
   // Form fields
   const [username, setUsername] = useState("");
@@ -111,7 +112,11 @@ export default function AdminUsersPage() {
           setError(data.error || "Create failed");
           return;
         }
-        setSuccess("User created successfully");
+        if (role === "waiter") {
+          setSuccess(`Waiter "${fullName}" registered successfully. They can be selected on the cashier transaction form.`);
+        } else {
+          setSuccess(`${role.charAt(0).toUpperCase() + role.slice(1)} "${fullName}" created successfully.`);
+        }
       }
       setShowForm(false);
       loadUsers();
@@ -155,6 +160,70 @@ export default function AdminUsersPage() {
             {success}
           </div>
         )}
+        {error && !showForm && (
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            {error}
+          </div>
+        )}
+
+        {/* Role summary — especially waiters */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0.75rem",
+            marginBottom: "1.25rem",
+          }}
+        >
+          {(
+            [
+              ["all", "All users", users.length],
+              ["waiter", "Waiters", users.filter((u) => u.role === "waiter").length],
+              ["cashier", "Cashiers", users.filter((u) => u.role === "cashier").length],
+              ["auditor", "Auditors", users.filter((u) => u.role === "auditor").length],
+              ["admin", "Admins", users.filter((u) => u.role === "admin").length],
+            ] as [Role | "all", string, number][]
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setRoleFilter(key)}
+              className="card"
+              style={{
+                padding: "0.85rem 1rem",
+                textAlign: "left",
+                cursor: "pointer",
+                border:
+                  roleFilter === key
+                    ? "2px solid var(--primary)"
+                    : "1px solid var(--border)",
+                background: roleFilter === key ? "#f0fdfa" : "white",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  color: "var(--muted)",
+                  textTransform: "uppercase",
+                }}
+              >
+                {label}
+              </div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 700, marginTop: "0.2rem" }}>
+                {count}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {roleFilter === "waiter" && (
+          <div className="alert alert-info" style={{ marginBottom: "1rem" }}>
+            Showing registered <strong>waiters</strong> only. Create a user with role
+            <strong> Waiter</strong> to add more. Waiters appear in the cashier form when
+            recording a transaction.
+          </div>
+        )}
 
         <div className="card table-wrap">
           {loading ? (
@@ -174,10 +243,33 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
+                {users
+                  .filter((u) => roleFilter === "all" || u.role === roleFilter)
+                  .map((u) => (
+                  <tr
+                    key={u.id}
+                    style={
+                      u.role === "waiter"
+                        ? { background: "#f0fdfa" }
+                        : undefined
+                    }
+                  >
                     <td style={{ fontWeight: 600 }}>{u.username}</td>
-                    <td>{u.fullName}</td>
+                    <td>
+                      {u.fullName}
+                      {u.role === "waiter" && (
+                        <span
+                          style={{
+                            marginLeft: "0.4rem",
+                            fontSize: "0.7rem",
+                            color: "var(--primary)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          (waiter)
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <span className={`badge badge-${u.role}`}>{u.role}</span>
                     </td>

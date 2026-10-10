@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type MouseEvent } from "react";
 import type { Transaction } from "@/lib/types";
 
 export default function AdminReportsPage() {
@@ -12,6 +12,31 @@ export default function AdminReportsPage() {
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleDelete(id: string, e?: MouseEvent) {
+    e?.stopPropagation();
+    if (!confirm("Delete this transaction? This cannot be undone.")) return;
+    setDeletingId(id);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/transactions?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleteError(data.error || "Failed to delete");
+        return;
+      }
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      if (selectedTx?.id === id) setSelectedTx(null);
+    } catch {
+      setDeleteError("Network error while deleting");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +110,11 @@ export default function AdminReportsPage() {
   return (
     <div>
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
+        {deleteError && (
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            {deleteError}
+          </div>
+        )}
         <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem" }}>
           Transaction Reports
         </h1>
@@ -258,6 +288,7 @@ export default function AdminReportsPage() {
                   <th>Cashier</th>
                   <th>Sender</th>
                   <th>Receiver</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -293,6 +324,17 @@ export default function AdminReportsPage() {
                       <td>{t.cashierName}</td>
                       <td>{t.senderName || "—"}</td>
                       <td>{t.receiverName || "—"}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          style={{ padding: "0.3rem 0.65rem", fontSize: "0.75rem" }}
+                          disabled={deletingId === t.id}
+                          onClick={(e) => handleDelete(t.id, e)}
+                        >
+                          {deletingId === t.id ? "…" : "Delete"}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -380,13 +422,24 @@ export default function AdminReportsPage() {
                   </div>
                 ))}
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: "1.25rem", width: "100%" }}
-                onClick={() => setSelectedTx(null)}
-              >
-                Close
-              </button>
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem" }}>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ flex: 1 }}
+                  disabled={deletingId === selectedTx.id}
+                  onClick={() => handleDelete(selectedTx.id)}
+                >
+                  {deletingId === selectedTx.id ? "Deleting…" : "Delete transaction"}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1 }}
+                  onClick={() => setSelectedTx(null)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
