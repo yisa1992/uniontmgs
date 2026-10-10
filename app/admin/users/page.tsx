@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Role } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import type { SessionUser, Role } from "@/lib/types";
 
 interface UserRow {
   id: string;
@@ -14,6 +16,8 @@ interface UserRow {
 }
 
 export default function AdminUsersPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -43,10 +47,26 @@ export default function AdminUsersPage() {
     }
   }
 
-  // Auth is handled by admin/layout.tsx (Supabase). Do not redirect to /login here.
   useEffect(() => {
-    loadUsers();
-  }, []);
+    fetch("/api/auth/me")
+      .then((r) => {
+        if (!r.ok) {
+          router.push("/login");
+          return null;
+        }
+        return r.json();
+      })
+      .then((d) => {
+        if (d?.user) {
+          if (d.user.role !== "admin") {
+            router.push("/");
+            return;
+          }
+          setUser(d.user);
+          loadUsers();
+        }
+      });
+  }, [router]);
 
   function openCreate() {
     setEditing(null);
@@ -120,7 +140,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  if (loading && users.length === 0) {
+  if (!user) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)" }}>
         Loading…
@@ -130,6 +150,7 @@ export default function AdminUsersPage() {
 
   return (
     <div>
+      <Navbar user={user} />
       <main style={{ maxWidth: 1000, margin: "0 auto", padding: "1.5rem" }}>
         <div
           style={{
@@ -142,7 +163,7 @@ export default function AdminUsersPage() {
           <div>
             <h1 style={{ margin: 0, fontSize: "1.5rem" }}>User Management</h1>
             <p style={{ color: "var(--muted)", margin: "0.25rem 0 0", fontSize: "0.9rem" }}>
-              Create and edit Admin, Auditor, Waiter, and Cashier accounts
+              Create and edit Admin, Auditor, and Cashier accounts
             </p>
           </div>
           <button className="btn btn-primary" onClick={openCreate}>
@@ -278,7 +299,6 @@ export default function AdminUsersPage() {
                     <option value="admin">Admin</option>
                     <option value="auditor">Auditor</option>
                     <option value="cashier">Cashier</option>
-                    <option value="waiter">Waiter</option>
                   </select>
                 </div>
                 {editing && (

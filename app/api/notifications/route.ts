@@ -11,7 +11,7 @@ export async function GET() {
   if (!requireRole(session, ["auditor", "admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return NextResponse.json({ notifications: await getNotifications() });
+  return NextResponse.json({ notifications: getNotifications() });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -21,9 +21,9 @@ export async function PATCH(req: NextRequest) {
   }
   const body = await req.json();
   if (body.all) {
-    await markAllNotificationsRead();
+    markAllNotificationsRead();
   } else if (body.id) {
-    await markNotificationRead(body.id);
+    markNotificationRead(body.id);
   }
   return NextResponse.json({ ok: true });
 }
