@@ -2,7 +2,7 @@
   "name": "Union TMS",
   "short_name": "Union TM",
   "description": "Union Transaction Management System",
-  "start_url": "/",
+  "start_url": "/login"
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
