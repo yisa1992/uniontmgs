@@ -1,6 +1,6 @@
 // Union TMS service worker
 const CACHE = "union-tms-v2";
-const PRECACHE = ["/", "/login", "/manifest.webmanifest", "/splash-logo.png"];
+const PRECACHE = ["/login", "/manifest.webmanifest", "/splash-logo.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
