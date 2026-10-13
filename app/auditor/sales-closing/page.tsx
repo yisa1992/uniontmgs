@@ -28,6 +28,8 @@ type ClosedSaleRecord = {
   balance: number;
   closedAt: string;
   closedBy?: string;
+  shortageReason?: string;
+  responsiblePerson?: string;
 };
 
 const STORAGE_KEY = "union_tms_closed_sales";
@@ -120,6 +122,8 @@ export default function SalesClosingPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [shortageReason, setShortageReason] = useState("");
+  const [responsiblePerson, setResponsiblePerson] = useState("");
 
   // Closed sales report panel
   const [showReport, setShowReport] = useState(false);
@@ -155,6 +159,8 @@ export default function SalesClosingPage() {
       setShowUnpaid(false);
       setUnpaidRows([{ id: newId(), name: "", amount: "", phone: "" }]);
       setSubmitMsg(null);
+      setShortageReason("");
+      setResponsiblePerson("");
     }
   }, [active, load]);
 
@@ -212,17 +218,34 @@ export default function SalesClosingPage() {
   const zValue = parseFloat(zReport) || 0;
 
   const balance = useMemo(() => {
-    return zValue - (cashierDeptTotal + cashierTipTotal + unpaidSum);
+    // When Z report > sums → negative; when Z < sums → positive
+    return (cashierDeptTotal + cashierTipTotal + unpaidSum) - zValue;
   }, [zValue, cashierDeptTotal, cashierTipTotal, unpaidSum]);
 
   const selectedCashierName =
     cashiers.find((c) => c.id === selectedCashier)?.name || selectedCashier;
 
+  // Once per day: same date + department + cashier already submitted
+  const alreadyClosedToday = useMemo(() => {
+    if (!sectionMeta || !selectedCashier) return false;
+    const records = typeof window !== "undefined" ? loadClosedSales() : closedRecords;
+    return records.some(
+      (r) =>
+        r.date === today &&
+        r.department === sectionMeta.id &&
+        (r.cashierId === selectedCashier || r.cashierName === selectedCashier)
+    );
+  }, [sectionMeta, selectedCashier, today, closedRecords]);
+
+  const isShortage = balance < 0;
+
   const canSubmit =
     !!selectedCashier &&
     zReport !== "" &&
     !Number.isNaN(zValue) &&
-    !submitting;
+    !submitting &&
+    !alreadyClosedToday &&
+    (!isShortage || (shortageReason.trim().length > 0 && responsiblePerson.trim().length > 0));
 
   function addUnpaidRow() {
     setUnpaidRows((prev) => [
@@ -252,6 +275,33 @@ export default function SalesClosingPage() {
     setSubmitMsg(null);
 
     try {
+      const existing = loadClosedSales();
+      const duplicate = existing.some(
+        (r) =>
+          r.date === today &&
+          r.department === sectionMeta.id &&
+          (r.cashierId === selectedCashier || r.cashierName === selectedCashier)
+      );
+      if (duplicate) {
+        setSubmitMsg({
+          type: "err",
+          text: `Already submitted today for ${sectionMeta.label} · ${selectedCashierName}. Only one submission per day is allowed.`,
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (balance < 0) {
+        if (!shortageReason.trim() || !responsiblePerson.trim()) {
+          setSubmitMsg({
+            type: "err",
+            text: "Balance is negative (shortage). Please enter the reason and who is responsible.",
+          });
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const record: ClosedSaleRecord = {
         id: newId(),
         date: today,
@@ -273,25 +323,17 @@ export default function SalesClosingPage() {
         zReport: zValue,
         balance,
         closedAt: new Date().toISOString(),
+        shortageReason: balance < 0 ? shortageReason.trim() : undefined,
+        responsiblePerson: balance < 0 ? responsiblePerson.trim() : undefined,
       };
 
-      const existing = loadClosedSales();
-      // Replace same day + department + cashier if already closed
-      const filtered = existing.filter(
-        (r) =>
-          !(
-            r.date === record.date &&
-            r.department === record.department &&
-            r.cashierId === record.cashierId
-          )
-      );
-      filtered.push(record);
-      saveClosedSales(filtered);
-      setClosedRecords(filtered);
+      existing.push(record);
+      saveClosedSales(existing);
+      setClosedRecords(existing);
 
       setSubmitMsg({
         type: "ok",
-        text: `Sales closed successfully for ${sectionMeta.label} · ${selectedCashierName} · ${today}`,
+        text: `Sales closed successfully for ${sectionMeta.label} · ${selectedCashierName} · ${today}. Submit is locked for this cashier today.`,
       });
     } catch {
       setSubmitMsg({ type: "err", text: "Failed to save closed sale. Please try again." });
@@ -798,23 +840,23 @@ export default function SalesClosingPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>Z Report</span>
-                    <strong>{fmt(zValue)} ETB</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>
-                      − Cashier {sectionMeta.label} total
+                      Cashier {sectionMeta.label} total
                       {!selectedCashier && " (select cashier)"}
                     </span>
                     <strong>{fmt(cashierDeptTotal)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>− Tips (selected cashier)</span>
+                    <span>+ Tips (selected cashier)</span>
                     <strong>{fmt(cashierTipTotal)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>− Unpaid sum</span>
+                    <span>+ Unpaid sum</span>
                     <strong>{fmt(unpaidSum)} ETB</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>− Z Report</span>
+                    <strong>{fmt(zValue)} ETB</strong>
                   </div>
                   <div
                     style={{
@@ -844,44 +886,126 @@ export default function SalesClosingPage() {
                   </div>
                 </div>
                 <p style={{ margin: "10px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Balance = Z Report − (Cashier {sectionMeta.label} + Tips + Unpaid)
+                  Balance = (Cashier {sectionMeta.label} + Tips + Unpaid) − Z Report  ·  if Z report is greater, balance is negative
                 </p>
               </div>
 
-              {/* Submit */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <button
-                  type="button"
-                  disabled={!canSubmit}
-                  onClick={handleSubmit}
+              {/* Shortage reason — required when balance is negative */}
+              {isShortage && selectedCashier && zReport !== "" && (
+                <div
                   style={{
-                    width: "100%",
-                    padding: "14px 20px",
-                    borderRadius: 12,
-                    border: "none",
-                    fontWeight: 800,
-                    fontSize: 16,
-                    cursor: canSubmit ? "pointer" : "not-allowed",
-                    background: canSubmit
-                      ? `linear-gradient(135deg, ${sectionMeta.color}, #0f766e)`
-                      : "#cbd5e1",
-                    color: "#fff",
-                    boxShadow: canSubmit
-                      ? `0 6px 20px ${sectionMeta.color}55`
-                      : "none",
-                    opacity: canSubmit ? 1 : 0.7,
+                    marginBottom: "1.25rem",
+                    padding: "1.25rem",
+                    borderRadius: 14,
+                    background: "#fef2f2",
+                    border: "2px solid #fecaca",
                   }}
                 >
-                  {submitting ? "Submitting…" : "✓ Submit Closing"}
-                </button>
-                {!selectedCashier && (
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 15,
+                      color: "#991b1b",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Shortage detected ({fmt(balance)} ETB)
+                  </div>
+                  <p style={{ margin: "0 0 1rem", fontSize: 13, color: "#7f1d1d" }}>
+                    Balance is negative. Explain why the shortage happened and who is responsible before submitting.
+                  </p>
+                  <div style={{ marginBottom: "0.85rem" }}>
+                    <label style={labelStyle}>Reason for shortage</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Why did the shortage happen?"
+                      value={shortageReason}
+                      onChange={(e) => {
+                        setShortageReason(e.target.value);
+                        setSubmitMsg(null);
+                      }}
+                      style={{
+                        ...inputStyle,
+                        resize: "vertical",
+                        minHeight: 72,
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Who is responsible</label>
+                    <input
+                      type="text"
+                      placeholder="Name of the responsible person"
+                      value={responsiblePerson}
+                      onChange={(e) => {
+                        setResponsiblePerson(e.target.value);
+                        setSubmitMsg(null);
+                      }}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Submit */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {alreadyClosedToday ? (
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: 12,
+                      background: "#f1f5f9",
+                      border: "2px solid #cbd5e1",
+                      textAlign: "center",
+                      fontWeight: 700,
+                      color: "#475569",
+                    }}
+                  >
+                    Already submitted today for this cashier and department.
+                    <div style={{ fontWeight: 500, fontSize: 13, marginTop: 6, color: "#64748b" }}>
+                      Submit is allowed only once per day.
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canSubmit}
+                    onClick={handleSubmit}
+                    style={{
+                      width: "100%",
+                      padding: "14px 20px",
+                      borderRadius: 12,
+                      border: "none",
+                      fontWeight: 800,
+                      fontSize: 16,
+                      cursor: canSubmit ? "pointer" : "not-allowed",
+                      background: canSubmit
+                        ? `linear-gradient(135deg, ${sectionMeta.color}, #0f766e)`
+                        : "#cbd5e1",
+                      color: "#fff",
+                      boxShadow: canSubmit
+                        ? `0 6px 20px ${sectionMeta.color}55`
+                        : "none",
+                      opacity: canSubmit ? 1 : 0.7,
+                    }}
+                  >
+                    {submitting ? "Submitting…" : "✓ Submit Closing"}
+                  </button>
+                )}
+                {!alreadyClosedToday && !selectedCashier && (
                   <p style={{ margin: 0, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
                     Select a cashier and enter Z report to submit
                   </p>
                 )}
-                {selectedCashier && zReport === "" && (
+                {!alreadyClosedToday && selectedCashier && zReport === "" && (
                   <p style={{ margin: 0, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
                     Enter Z report amount to submit
+                  </p>
+                )}
+                {!alreadyClosedToday && isShortage && selectedCashier && zReport !== "" &&
+                  (!shortageReason.trim() || !responsiblePerson.trim()) && (
+                  <p style={{ margin: 0, fontSize: 13, color: "#b91c1c", textAlign: "center" }}>
+                    Enter shortage reason and responsible person to enable submit
                   </p>
                 )}
                 {submitMsg && (
@@ -1046,6 +1170,8 @@ export default function SalesClosingPage() {
                           "Unpaid",
                           "Z Report",
                           "Balance",
+                          "Shortage reason",
+                          "Responsible",
                           "Closed at",
                         ].map((h) => (
                           <th
@@ -1100,6 +1226,25 @@ export default function SalesClosingPage() {
                             }}
                           >
                             {fmt(r.balance)}
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 8px",
+                              borderBottom: "1px solid #e2e8f0",
+                              fontSize: 12,
+                              maxWidth: 160,
+                            }}
+                          >
+                            {r.shortageReason || "—"}
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 8px",
+                              borderBottom: "1px solid #e2e8f0",
+                              fontSize: 12,
+                            }}
+                          >
+                            {r.responsiblePerson || "—"}
                           </td>
                           <td
                             style={{
