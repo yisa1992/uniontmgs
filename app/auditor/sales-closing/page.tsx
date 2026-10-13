@@ -218,9 +218,11 @@ export default function SalesClosingPage() {
   const zValue = parseFloat(zReport) || 0;
 
   const balance = useMemo(() => {
+    // Cashier selection only affects tips.
+    // Department total = ALL cashiers for restaurant/cafe/butchery today.
     // When Z report > sums → negative; when Z < sums → positive
-    return (cashierDeptTotal + cashierTipTotal + unpaidSum) - zValue;
-  }, [zValue, cashierDeptTotal, cashierTipTotal, unpaidSum]);
+    return (departmentTotal + cashierTipTotal + unpaidSum) - zValue;
+  }, [zValue, departmentTotal, cashierTipTotal, unpaidSum]);
 
   const selectedCashierName =
     cashiers.find((c) => c.id === selectedCashier)?.name || selectedCashier;
@@ -540,7 +542,7 @@ export default function SalesClosingPage() {
               </div>
 
               <div style={{ marginBottom: "1.25rem" }}>
-                <label style={labelStyle}>Select Cashier</label>
+                <label style={labelStyle}>Select Cashier (for tips only)</label>
                 <select
                   value={selectedCashier}
                   onChange={(e) => {
@@ -556,6 +558,9 @@ export default function SalesClosingPage() {
                     </option>
                   ))}
                 </select>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "6px 0 0" }}>
+                  Cashier selection only counts tips from that cashier. {sectionMeta.label} total uses all cashiers.
+                </p>
                 {cashiers.length === 0 && (
                   <p style={{ fontSize: 13, color: "#94a3b8", margin: "6px 0 0" }}>
                     No cashier transactions found for today.
@@ -581,13 +586,13 @@ export default function SalesClosingPage() {
                     }}
                   >
                     <div style={{ ...labelStyle, marginBottom: 4 }}>
-                      Cashier {sectionMeta.label} Total
+                      Total {sectionMeta.label} (all cashiers)
                     </div>
                     <div style={{ fontWeight: 800, fontSize: "1.35rem", color: "#0369a1" }}>
-                      {fmt(cashierDeptTotal)} ETB
+                      {fmt(departmentTotal)} ETB
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                      {cashierTxs.length} transaction{cashierTxs.length !== 1 ? "s" : ""} today
+                      Used in balance — not filtered by cashier
                     </div>
                   </div>
                   <div
@@ -605,7 +610,7 @@ export default function SalesClosingPage() {
                       {fmt(cashierTipTotal)} ETB
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                      Sum of all tips encoded by this cashier today
+                      Only tips from {selectedCashierName || "this cashier"} today
                     </div>
                   </div>
                 </div>
@@ -840,14 +845,14 @@ export default function SalesClosingPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>
-                      Cashier {sectionMeta.label} total
-                      {!selectedCashier && " (select cashier)"}
-                    </span>
-                    <strong>{fmt(cashierDeptTotal)} ETB</strong>
+                    <span>Total {sectionMeta.label} (all cashiers)</span>
+                    <strong>{fmt(departmentTotal)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>+ Tips (selected cashier)</span>
+                    <span>
+                      + Tips (selected cashier)
+                      {!selectedCashier && " — select cashier"}
+                    </span>
                     <strong>{fmt(cashierTipTotal)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -886,7 +891,7 @@ export default function SalesClosingPage() {
                   </div>
                 </div>
                 <p style={{ margin: "10px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Balance = (Cashier {sectionMeta.label} + Tips + Unpaid) − Z Report  ·  if Z report is greater, balance is negative
+                  Balance = (Total {sectionMeta.label} all cashiers + Tips of selected cashier + Unpaid) − Z Report  ·  if Z report is greater, balance is negative
                 </p>
               </div>
 
