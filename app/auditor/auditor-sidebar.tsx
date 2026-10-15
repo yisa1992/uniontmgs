@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import NotificationBell from "@/components/NotificationBell";
+import NotificationBell from "../components/NotificationBell";
 
 const navItems = [
   { href: "/auditor/reports", label: "Reports", icon: "📊", color: "#10b981" },
