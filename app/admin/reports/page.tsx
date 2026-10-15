@@ -233,6 +233,7 @@ export default function AdminReportsPage() {
   }
 
   return (
+    <>
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "1.5rem" }}>
       <div
         style={{
@@ -1106,6 +1107,7 @@ export default function AdminReportsPage() {
           </div>
         </div>
       )}
-
+    </>
   );
 }
+
