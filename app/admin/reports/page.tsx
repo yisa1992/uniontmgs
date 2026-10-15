@@ -56,6 +56,76 @@ export default function AdminReportsPage() {
   const [tab, setTab] = useState<ReportTab>("all");
   const [selectedTx, setSelectedTx] = useState<TxExtra | null>(null);
 
+  type UnpaidBill = {
+    closedSaleId: string;
+    rowIndex: number;
+    date: string;
+    department: string;
+    departmentLabel: string;
+    cashierName: string;
+    name: string;
+    phone: string;
+    amount: number;
+    closedAt: string;
+    daysOpen: number;
+  };
+
+  const [showUnpaid, setShowUnpaid] = useState(false);
+  const [unpaidItems, setUnpaidItems] = useState<UnpaidBill[]>([]);
+  const [unpaidLoading, setUnpaidLoading] = useState(false);
+  const [payTarget, setPayTarget] = useState<UnpaidBill | null>(null);
+  const [payPassword, setPayPassword] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  async function loadUnpaid() {
+    setUnpaidLoading(true);
+    try {
+      const res = await fetch("/api/closed-sales/unpaid");
+      const d = await res.json().catch(() => ({}));
+      setUnpaidItems(d.items || []);
+    } catch {
+      setUnpaidItems([]);
+    } finally {
+      setUnpaidLoading(false);
+    }
+  }
+
+  async function openUnpaidPanel() {
+    setShowUnpaid(true);
+    await loadUnpaid();
+  }
+
+  async function confirmPaid() {
+    if (!payTarget) return;
+    setPayBusy(true);
+    setPayError(null);
+    try {
+      const res = await fetch("/api/closed-sales/unpaid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          closedSaleId: payTarget.closedSaleId,
+          rowIndex: payTarget.rowIndex,
+          password: payPassword,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPayError(d.error || "Failed to mark paid");
+        setPayBusy(false);
+        return;
+      }
+      setPayTarget(null);
+      setPayPassword("");
+      await loadUnpaid();
+    } catch {
+      setPayError("Network error");
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -179,6 +249,26 @@ export default function AdminReportsPage() {
         </h1>
         <p style={{ margin: 0, opacity: 0.92, fontSize: "0.95rem" }}>
           All sales, or Restaurant / Cafe / Butchery only — with totals at the bottom
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={openUnpaidPanel}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: "linear-gradient(135deg, #dc2626, #b91c1c)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(220,38,38,0.35)",
+            }}
+          >
+            Unpaid bill
+          </button>
+        </div>
         </p>
       </div>
 
@@ -745,5 +835,277 @@ export default function AdminReportsPage() {
         </div>
       )}
     </div>
+
+      {/* Unpaid bills panel */}
+      {showUnpaid && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.25rem",
+          }}
+          onClick={() => setShowUnpaid(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 820,
+              maxHeight: "90vh",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "1rem 1.25rem",
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#fef2f2",
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.15rem", color: "#991b1b" }}>
+                  Unpaid bills
+                </h2>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#7f1d1d" }}>
+                  Name, phone, amount — mark Paid after confirming your password
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUnpaid(false)}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #fecaca",
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ overflow: "auto", flex: 1, padding: "0.75rem 1rem 1.25rem" }}>
+              {unpaidLoading ? (
+                <p style={{ color: "#64748b", textAlign: "center", padding: 24 }}>Loading…</p>
+              ) : unpaidItems.length === 0 ? (
+                <p style={{ color: "#94a3b8", textAlign: "center", padding: 24 }}>
+                  No unpaid bills
+                </p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#fef2f2" }}>
+                      {["Name", "Phone", "Amount (ETB)", "Date", "Days", "Dept", "Cashier", ""].map(
+                        (h) => (
+                          <th
+                            key={h || "a"}
+                            style={{
+                              textAlign: "left",
+                              padding: "10px 8px",
+                              borderBottom: "2px solid #fecaca",
+                              fontSize: 11,
+                              textTransform: "uppercase",
+                              color: "#991b1b",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unpaidItems.map((u) => (
+                      <tr
+                        key={`${u.closedSaleId}-${u.rowIndex}`}
+                        style={{
+                          background: u.daysOpen >= 5 ? "#fff7ed" : "#fff",
+                        }}
+                      >
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2", fontWeight: 600 }}>
+                          {u.name}
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2", fontFamily: "ui-monospace, monospace" }}>
+                          {u.phone}
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2", fontWeight: 800, color: "#b91c1c" }}>
+                          {u.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2" }}>{u.date}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2", fontWeight: u.daysOpen >= 5 ? 800 : 500, color: u.daysOpen >= 5 ? "#c2410c" : "#64748b" }}>
+                          {u.daysOpen}d
+                        </td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2" }}>{u.departmentLabel}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2" }}>{u.cashierName}</td>
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #fee2e2" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPayTarget(u);
+                              setPayPassword("");
+                              setPayError(null);
+                            }}
+                            style={{
+                              background: "#059669",
+                              border: "none",
+                              color: "#fff",
+                              borderRadius: 8,
+                              padding: "6px 12px",
+                              fontWeight: 700,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Paid
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password confirm for Paid */}
+      {payTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.55)",
+            zIndex: 120,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.25rem",
+          }}
+          onClick={() => !payBusy && setPayTarget(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 400,
+              padding: "1.5rem",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: "1.1rem" }}>Confirm payment</h3>
+            <p style={{ margin: "0 0 1rem", fontSize: 13, color: "#64748b" }}>
+              Mark <strong>{payTarget.name}</strong> ({payTarget.phone}) —{" "}
+              <strong>
+                {payTarget.amount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ETB
+              </strong>{" "}
+              as paid. Enter your admin password to continue.
+            </p>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#475569",
+                marginBottom: 6,
+              }}
+            >
+              Your password
+            </label>
+            <input
+              type="password"
+              autoFocus
+              value={payPassword}
+              onChange={(e) => setPayPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && payPassword) confirmPaid();
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                fontSize: 14,
+                marginBottom: 12,
+                boxSizing: "border-box",
+              }}
+              placeholder="Admin password"
+            />
+            {payError && (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: "#fef2f2",
+                  color: "#991b1b",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 12,
+                }}
+              >
+                {payError}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                disabled={payBusy}
+                onClick={() => setPayTarget(null)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  background: "#f8fafc",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={payBusy || !payPassword}
+                onClick={confirmPaid}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: payBusy || !payPassword ? "#94a3b8" : "#059669",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: payBusy || !payPassword ? "not-allowed" : "pointer",
+                }}
+              >
+                {payBusy ? "Saving…" : "Confirm paid"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
   );
 }
