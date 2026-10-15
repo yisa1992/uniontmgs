@@ -312,3 +312,100 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const {
+      id,
+      departmentTotal,
+      cashierDeptTotal,
+      cashierTipTotal,
+      unpaidSum,
+      unpaidRows,
+      zReport,
+      balance,
+      shortageReason,
+      responsiblePerson,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    if (Number(balance) < 0) {
+      if (
+        !String(shortageReason || "").trim() ||
+        !String(responsiblePerson || "").trim()
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Sum is less than Z report (shortage). Reason and responsible person are required.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const admin = getAdminClient();
+
+    const updatePayload: Record<string, unknown> = {
+      department_total: Number(departmentTotal) || 0,
+      cashier_dept_total: Number(cashierDeptTotal) || 0,
+      cashier_tip_total: Number(cashierTipTotal) || 0,
+      unpaid_sum: Number(unpaidSum) || 0,
+      unpaid_rows: Array.isArray(unpaidRows) ? unpaidRows : [],
+      z_report: Number(zReport) || 0,
+      balance: Number(balance) || 0,
+      shortage_reason:
+        Number(balance) < 0
+          ? String(shortageReason || "").trim() || null
+          : null,
+      responsible_person:
+        Number(balance) < 0
+          ? String(responsiblePerson || "").trim() || null
+          : null,
+    };
+
+    const { data: updated, error: updateErr } = await admin
+      .from("closed_sales")
+      .update(updatePayload)
+      .eq("id", String(id))
+      .select()
+      .single();
+
+    if (updateErr) {
+      console.error("[closed-sales] PUT error:", updateErr.message);
+      if (
+        updateErr.message.toLowerCase().includes("relation") &&
+        updateErr.message.toLowerCase().includes("does not exist")
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "closed_sales table not found. Run the SQL in the comment at the top of api/closed-sales/route.ts.",
+          },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    if (!updated) {
+      return NextResponse.json({ error: "Record not found" }, { status: 404 });
+    }
+
+    const record = rowToRecord(updated as Record<string, unknown>);
+    return NextResponse.json({ record });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to update closed sale";
+    console.error("[closed-sales] PUT exception:", msg);
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
