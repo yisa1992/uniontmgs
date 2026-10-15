@@ -99,7 +99,7 @@ export default function AdminClosedSalesPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Closed Sales Report</h1>
           <p style={{ color: "#64748b", margin: "0.35rem 0 0", fontSize: "0.9rem" }}>
-            View auditor closings by date. Click Unpaid to see bill details.
+            View auditor closings by date. Click the unpaid amount to see bill details in a table.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -243,7 +243,29 @@ export default function AdminClosedSalesPage() {
                         {fmt(r.cashierTipTotal)}
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
-                        {fmt(r.unpaidSum)}
+                        {r.unpaidSum > 0 || (r.unpaidRows && r.unpaidRows.length > 0) ? (
+                          <button
+                            type="button"
+                            onClick={() => setUnpaidDetail(r)}
+                            title="Click to view unpaid bill details"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              color: "#b91c1c",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              textUnderlineOffset: 3,
+                            }}
+                          >
+                            {fmt(r.unpaidSum)}
+                          </button>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>{fmt(r.unpaidSum)}</span>
+                        )}
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         {fmt(r.zReport)}
@@ -337,8 +359,10 @@ export default function AdminClosedSalesPage() {
             style={{
               background: "#fff",
               borderRadius: 16,
-              maxWidth: 560,
+              maxWidth: 640,
               width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
               padding: "1.5rem",
               boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
             }}
@@ -372,79 +396,136 @@ export default function AdminClosedSalesPage() {
             </div>
             <p style={{ margin: "0 0 1rem", fontSize: 13, color: "#64748b" }}>
               Cashier: <strong>{unpaidDetail.cashierName}</strong> · Date:{" "}
-              <strong>{unpaidDetail.date}</strong>
+              <strong>{unpaidDetail.date}</strong> · Department:{" "}
+              <strong>{unpaidDetail.departmentLabel}</strong>
             </p>
             {!unpaidDetail.unpaidRows || unpaidDetail.unpaidRows.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>
-                No line items recorded. Unpaid sum: {fmt(unpaidDetail.unpaidSum)} ETB
-              </p>
+              <div
+                style={{
+                  padding: "1rem",
+                  background: "#f8fafc",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  color: "#64748b",
+                }}
+              >
+                No line items recorded.
+                <div style={{ marginTop: 8, fontWeight: 700, color: "#0f172a" }}>
+                  Unpaid sum: {fmt(unpaidDetail.unpaidSum)} ETB
+                </div>
+              </div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: "#fef2f2" }}>
-                    {["Name", "Bill amount", "Phone"].map((h) => (
-                      <th
-                        key={h}
+              <div style={{ overflowX: "auto", borderRadius: 12, border: "1px solid #fecaca" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#fef2f2" }}>
+                      {[
+                        { h: "#", align: "center" as const },
+                        { h: "Customer name", align: "left" as const },
+                        { h: "Phone", align: "left" as const },
+                        { h: "Bill amount (ETB)", align: "right" as const },
+                      ].map(({ h, align }) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: align,
+                            padding: "12px 14px",
+                            borderBottom: "2px solid #fecaca",
+                            fontSize: 11,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            color: "#991b1b",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unpaidDetail.unpaidRows.map((u, i) => (
+                      <tr
+                        key={i}
+                        style={{ background: i % 2 === 0 ? "#fff" : "#fffafa" }}
+                      >
+                        <td
+                          style={{
+                            padding: "12px 14px",
+                            borderBottom: "1px solid #fee2e2",
+                            textAlign: "center",
+                            color: "#94a3b8",
+                            fontWeight: 600,
+                            width: 40,
+                          }}
+                        >
+                          {i + 1}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 14px",
+                            borderBottom: "1px solid #fee2e2",
+                            fontWeight: 600,
+                            color: "#0f172a",
+                          }}
+                        >
+                          {u.name || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 14px",
+                            borderBottom: "1px solid #fee2e2",
+                            color: "#475569",
+                            fontFamily: "ui-monospace, monospace",
+                            fontSize: 13,
+                          }}
+                        >
+                          {u.phone || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 14px",
+                            borderBottom: "1px solid #fee2e2",
+                            textAlign: "right",
+                            fontWeight: 700,
+                            color: "#b91c1c",
+                          }}
+                        >
+                          {fmt(Number(u.amount) || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#fef2f2" }}>
+                      <td
+                        colSpan={3}
                         style={{
-                          textAlign: "left",
-                          padding: "10px 12px",
-                          borderBottom: "2px solid #fecaca",
-                          fontSize: 11,
-                          textTransform: "uppercase",
-                          color: "#991b1b",
+                          padding: "14px",
+                          fontWeight: 800,
+                          borderTop: "2px solid #fecaca",
+                          color: "#7f1d1d",
                         }}
                       >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {unpaidDetail.unpaidRows.map((u, i) => (
-                    <tr key={i}>
-                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #fee2e2" }}>
-                        {u.name || "—"}
+                        Total unpaid ({unpaidDetail.unpaidRows.length} bill
+                        {unpaidDetail.unpaidRows.length === 1 ? "" : "s"})
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
-                          borderBottom: "1px solid #fee2e2",
-                          fontWeight: 600,
+                          padding: "14px",
+                          fontWeight: 900,
+                          color: "#b91c1c",
+                          borderTop: "2px solid #fecaca",
+                          textAlign: "right",
+                          fontSize: 16,
                         }}
                       >
-                        {fmt(u.amount)} ETB
-                      </td>
-                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #fee2e2" }}>
-                        {u.phone || "—"}
+                        {fmt(unpaidDetail.unpaidSum)} ETB
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td
-                      style={{
-                        padding: "12px",
-                        fontWeight: 800,
-                        borderTop: "2px solid #fecaca",
-                      }}
-                    >
-                      Sum of unpaid
-                    </td>
-                    <td
-                      colSpan={2}
-                      style={{
-                        padding: "12px",
-                        fontWeight: 800,
-                        color: "#b91c1c",
-                        borderTop: "2px solid #fecaca",
-                      }}
-                    >
-                      {fmt(unpaidDetail.unpaidSum)} ETB
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
+              </div>
             )}
           </div>
         </div>
