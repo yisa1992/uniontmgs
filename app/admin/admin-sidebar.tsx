@@ -107,7 +107,7 @@ export default function AdminSidebar({ staffLabel }: { staffLabel: string }) {
           >
             👤 {staffLabel}
           </div>
-                  <NotificationBell />
+          <NotificationBell />
           <button
             type="button"
             onClick={logout}

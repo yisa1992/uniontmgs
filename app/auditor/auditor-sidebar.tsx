@@ -111,7 +111,7 @@ export default function AuditorSidebar({ staffLabel }: { staffLabel: string }) {
           >
             👤 {staffLabel}
           </div>
-                    <NotificationBell />
+          <NotificationBell />
           <button
             type="button"
             onClick={logout}

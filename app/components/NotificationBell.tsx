@@ -2,62 +2,64 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type Notif = {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  actor?: string | null;
-  is_read: boolean;
-  created_at: string;
+type UnpaidBill = {
+  closedSaleId: string;
+  rowIndex: number;
+  date: string;
+  departmentLabel: string;
+  cashierName: string;
+  name: string;
+  phone: string;
+  amount: number;
+  daysOpen: number;
 };
 
+function fmt(n: number) {
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * Bell shows only unpaid bills that are 5+ days old.
+ * Failures are swallowed so the admin/auditor layout never crashes.
+ */
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notif[]>([]);
-  const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<UnpaidBill[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications");
-      if (!res.ok) return;
-      const d = await res.json();
-      setItems(d.notifications || []);
-      setUnread(typeof d.unread === "number" ? d.unread : (d.notifications || []).filter((n: Notif) => !n.is_read).length);
+      setError(null);
+      const res = await fetch("/api/closed-sales/unpaid");
+      if (!res.ok) {
+        setItems([]);
+        return;
+      }
+      const d = await res.json().catch(() => ({ items: [] }));
+      const all = Array.isArray(d.items) ? d.items : [];
+      const overdue = all
+        .filter((x: UnpaidBill) => Number(x.daysOpen) >= 5)
+        .sort(
+          (a: UnpaidBill, b: UnpaidBill) =>
+            b.daysOpen - a.daysOpen || a.date.localeCompare(b.date)
+        );
+      setItems(overdue);
     } catch {
-      // ignore
+      setItems([]);
+      setError(null); // silent — do not break UI
     }
   }, []);
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 60000);
+    const t = setInterval(load, 120000);
     return () => clearInterval(t);
   }, [load]);
 
-  async function markAllRead() {
-    setLoading(true);
-    try {
-      await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }),
-      });
-      await load();
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function markRead(id: string) {
-    await fetch("/api/notifications", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    await load();
-  }
+  const count = items.length;
 
   return (
     <>
@@ -67,7 +69,8 @@ export default function NotificationBell() {
           setOpen((v) => !v);
           if (!open) load();
         }}
-        aria-label="Notifications"
+        aria-label="Overdue unpaid bills"
+        title="Unpaid bills older than 5 days"
         style={{
           position: "relative",
           width: 42,
@@ -78,13 +81,14 @@ export default function NotificationBell() {
           color: "#fff",
           cursor: "pointer",
           fontSize: 20,
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
+          flexShrink: 0,
         }}
       >
         🔔
-        {unread > 0 && (
+        {count > 0 && (
           <span
             style={{
               position: "absolute",
@@ -104,7 +108,7 @@ export default function NotificationBell() {
               boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
             }}
           >
-            {unread > 99 ? "99+" : unread}
+            {count > 99 ? "99+" : count}
           </span>
         )}
       </button>
@@ -120,7 +124,7 @@ export default function NotificationBell() {
               position: "fixed",
               top: 64,
               right: 12,
-              width: "min(380px, calc(100vw - 24px))",
+              width: "min(400px, calc(100vw - 24px))",
               maxHeight: "min(480px, 70vh)",
               background: "#fff",
               borderRadius: 14,
@@ -135,93 +139,87 @@ export default function NotificationBell() {
             <div
               style={{
                 padding: "12px 14px",
-                borderBottom: "1px solid #e2e8f0",
+                borderBottom: "1px solid #fecaca",
+                background: "#fef2f2",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "#f8fafc",
               }}
             >
-              <strong style={{ fontSize: 14, color: "#0f172a" }}>Notifications</strong>
+              <div>
+                <strong style={{ fontSize: 14, color: "#991b1b" }}>
+                  Overdue unpaid bills
+                </strong>
+                <div style={{ fontSize: 11, color: "#7f1d1d", marginTop: 2 }}>
+                  Only bills unpaid for 5 days or more
+                </div>
+              </div>
               <button
                 type="button"
-                disabled={loading || unread === 0}
-                onClick={markAllRead}
+                onClick={() => setOpen(false)}
                 style={{
                   border: "none",
-                  background: "transparent",
-                  color: unread ? "#0f766e" : "#94a3b8",
+                  background: "#fff",
+                  borderRadius: 8,
+                  padding: "4px 10px",
                   fontWeight: 700,
+                  cursor: "pointer",
                   fontSize: 12,
-                  cursor: unread ? "pointer" : "default",
                 }}
               >
-                Mark all read
+                Close
               </button>
             </div>
+
             <div style={{ overflowY: "auto", flex: 1 }}>
-              {items.length === 0 ? (
-                <p style={{ padding: 20, margin: 0, color: "#94a3b8", fontSize: 13, textAlign: "center" }}>
-                  No notifications
+              {error && (
+                <p style={{ padding: 16, margin: 0, color: "#991b1b", fontSize: 13 }}>
+                  {error}
                 </p>
-              ) : (
-                items.map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => {
-                      if (!n.is_read) markRead(n.id);
-                    }}
+              )}
+              {!error && count === 0 && (
+                <p
+                  style={{
+                    padding: 24,
+                    margin: 0,
+                    color: "#94a3b8",
+                    fontSize: 13,
+                    textAlign: "center",
+                  }}
+                >
+                  No unpaid bills older than 5 days
+                </p>
+              )}
+              {items.map((u) => (
+                <div
+                  key={`${u.closedSaleId}-${u.rowIndex}`}
+                  style={{
+                    padding: "12px 14px",
+                    borderBottom: "1px solid #fee2e2",
+                    background: u.daysOpen >= 10 ? "#fff7ed" : "#fff",
+                  }}
+                >
+                  <div
                     style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      border: "none",
-                      borderBottom: "1px solid #f1f5f9",
-                      background: n.is_read ? "#fff" : "#f0fdfa",
-                      padding: "12px 14px",
-                      cursor: "pointer",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: "#0f172a",
                     }}
                   >
-                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      {!n.is_read && (
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            background: "#0f766e",
-                            marginTop: 5,
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
-                          {n.title}
-                        </div>
-                        {n.message && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#64748b",
-                              marginTop: 4,
-                              whiteSpace: "pre-wrap",
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            {n.message}
-                          </div>
-                        )}
-                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-                          {new Date(n.created_at).toLocaleString()}
-                          {n.actor ? ` · ${n.actor}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
+                    {u.name || "—"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                    {u.phone || "—"} ·{" "}
+                    <strong style={{ color: "#b91c1c" }}>
+                      {fmt(Number(u.amount) || 0)} ETB
+                    </strong>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                    {u.date} · {u.daysOpen} days · {u.departmentLabel}
+                    {u.cashierName ? ` · ${u.cashierName}` : ""}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </>
