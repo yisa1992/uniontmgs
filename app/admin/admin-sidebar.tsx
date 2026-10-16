@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import NotificationBell from "../components/NotificationBell";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: "🏠", color: "#0ea5e9" },
@@ -107,7 +106,6 @@ export default function AdminSidebar({ staffLabel }: { staffLabel: string }) {
           >
             👤 {staffLabel}
           </div>
-          <NotificationBell />
           <button
             type="button"
             onClick={logout}
