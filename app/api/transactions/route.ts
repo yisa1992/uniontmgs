@@ -5,6 +5,9 @@ import {
   createTransaction,
   getTransactionByFt,
   deleteTransaction,
+  updateTransaction,
+  getUserByUsername,
+  verifyPassword,
 } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -25,9 +28,28 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const cashierId = searchParams.get("cashierId");
-  if (from) txs = txs.filter((t) => t.createdAt >= from);
-  if (to) txs = txs.filter((t) => t.createdAt <= to + "T23:59:59");
+  const cashierName = searchParams.get("cashierName");
+  const todayOnly = searchParams.get("today") === "1" || searchParams.get("today") === "true";
+
+  if (todayOnly) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const start = `${y}-${m}-${d}`;
+    const end = `${y}-${m}-${d}T23:59:59.999`;
+    txs = txs.filter((t) => t.createdAt >= start && t.createdAt <= end);
+  } else {
+    if (from) txs = txs.filter((t) => t.createdAt >= from);
+    if (to) txs = txs.filter((t) => t.createdAt <= to + "T23:59:59");
+  }
+
   if (cashierId) txs = txs.filter((t) => t.cashierId === cashierId);
+  if (cashierName) {
+    const q = cashierName.toLowerCase();
+    txs = txs.filter((t) => (t.cashierName || "").toLowerCase() === q);
+  }
+
   return NextResponse.json({ transactions: txs });
 }
 
@@ -123,6 +145,127 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ transaction: tx }, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed to create transaction";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+/**
+ * PATCH — edit an existing transaction.
+ * Requires an auditor username + password for approval.
+ * Allowed for cashiers (own / any on the floor), admin, auditor.
+ */
+export async function PATCH(req: NextRequest) {
+  const session = await getSession();
+  if (!requireRole(session, ["admin", "auditor", "cashier"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const {
+      id,
+      auditorUsername,
+      auditorPassword,
+      ftNumber,
+      totalAmount,
+      restaurantAmount,
+      cafeAmount,
+      butcheryAmount,
+      tip,
+      senderName,
+      receiverName,
+      tableNumber,
+      waiterId,
+      waiterName,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Transaction id is required" }, { status: 400 });
+    }
+
+    if (!auditorUsername || !auditorPassword) {
+      return NextResponse.json(
+        { error: "Auditor username and password are required for approval" },
+        { status: 400 }
+      );
+    }
+
+    const auditor = await getUserByUsername(String(auditorUsername).trim());
+    if (!auditor || !auditor.active) {
+      return NextResponse.json({ error: "Auditor account not found or inactive" }, { status: 401 });
+    }
+    if (auditor.role !== "auditor" && auditor.role !== "admin") {
+      return NextResponse.json(
+        { error: "Only an auditor (or admin) password can approve edits" },
+        { status: 403 }
+      );
+    }
+    if (!verifyPassword(auditor, String(auditorPassword))) {
+      return NextResponse.json({ error: "Incorrect auditor password" }, { status: 401 });
+    }
+
+    const r = restaurantAmount != null ? Number(restaurantAmount) || 0 : undefined;
+    const c = cafeAmount != null ? Number(cafeAmount) || 0 : undefined;
+    const b = butcheryAmount != null ? Number(butcheryAmount) || 0 : undefined;
+    const t = tip != null ? Number(tip) || 0 : undefined;
+    const total = totalAmount != null ? Number(totalAmount) : undefined;
+
+    if (r != null && c != null && b != null && t != null && total != null) {
+      if (Math.abs(r + c + b + t - total) > 0.01) {
+        return NextResponse.json(
+          {
+            error: `Sum of restaurant + cafe + butchery + tip (${(r + c + b + t).toFixed(2)}) must equal total (${total.toFixed(2)})`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (ftNumber != null && String(ftNumber).trim()) {
+      const existing = await getTransactionByFt(String(ftNumber).trim());
+      if (existing && existing.id !== id) {
+        return NextResponse.json(
+          { error: "This transaction / FT number already exists in the system" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (ftNumber != null) patch.ftNumber = String(ftNumber).trim();
+    if (total != null) patch.totalAmount = total;
+    if (r != null) patch.restaurantAmount = r;
+    if (c != null) patch.cafeAmount = c;
+    if (b != null) patch.butcheryAmount = b;
+    if (t != null) patch.tip = t;
+    if (senderName != null) patch.senderName = String(senderName);
+    if (receiverName != null) patch.receiverName = String(receiverName);
+    if (tableNumber != null) patch.tableNumber = String(tableNumber).trim();
+    if (waiterId != null) patch.waiterId = String(waiterId);
+    if (waiterName != null) patch.waiterName = String(waiterName);
+    // Audit trail
+    patch.updatedAt = new Date().toISOString();
+    patch.updatedBy = session!.fullName || session!.username;
+    patch.approvedBy = auditor.fullName || auditor.username;
+
+    const updated = await updateTransaction(id, patch);
+    if (!updated) {
+      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ transaction: updated, ok: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to update transaction";
+    // Helpful message if updateTransaction is not yet implemented in lib/db
+    if (msg.includes("updateTransaction is not a function") || msg.includes("is not a function")) {
+      return NextResponse.json(
+        {
+          error:
+            "Server is missing updateTransaction in lib/db. Please add updateTransaction(id, patch) that merges fields and persists the transaction.",
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

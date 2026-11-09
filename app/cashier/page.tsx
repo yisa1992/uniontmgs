@@ -615,12 +615,34 @@ export default function CashierPage() {
         >
           <div style={{ position: "absolute", top: -30, right: -20, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
           <div style={{ position: "absolute", bottom: -40, left: 40, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
-          <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, letterSpacing: "-0.02em", position: "relative" }}>
-            📸 New Transaction
-          </h1>
-          <p style={{ margin: "0.4rem 0 0", opacity: 0.9, fontSize: "0.95rem", position: "relative" }}>
-            Scan the receipt QR or photo — everything fills in automatically. Just confirm the split &amp; submit.
-          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", position: "relative" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
+                📸 New Transaction
+              </h1>
+              <p style={{ margin: "0.4rem 0 0", opacity: 0.9, fontSize: "0.95rem" }}>
+                Scan the receipt QR or photo — everything fills in automatically. Just confirm the split &amp; submit.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/cashier/report")}
+              style={{
+                background: "rgba(255,255,255,0.18)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.4)",
+                borderRadius: 12,
+                padding: "0.7rem 1.15rem",
+                fontWeight: 800,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+              }}
+            >
+              📊 Today&apos;s Report
+            </button>
+          </div>
         </div>
 
         {error && (
