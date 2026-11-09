@@ -121,21 +121,75 @@ export default function CashierPage() {
     setError("");
     setSuccess("");
     try {
-      // Prefer rear camera on phones
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+      // Prefer rear camera at the highest resolution the device allows
+      const tryConstraints: MediaStreamConstraints[] = [
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 4032 },
+            height: { ideal: 3024 },
+          },
         },
-        audio: false,
-      });
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
+        },
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        },
+        {
+          audio: false,
+          video: { facingMode: { ideal: "environment" } },
+        },
+      ];
+
+      let stream: MediaStream | null = null;
+      let lastErr: unknown = null;
+      for (const constraints of tryConstraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!stream) throw lastErr || new Error("Camera unavailable");
+
+      // Push track to maximum supported resolution when possible
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        try {
+          const caps =
+            typeof track.getCapabilities === "function"
+              ? track.getCapabilities()
+              : ({} as MediaTrackCapabilities);
+          const req: MediaTrackConstraints = {};
+          if (caps.width?.max) req.width = { ideal: caps.width.max };
+          if (caps.height?.max) req.height = { ideal: caps.height.max };
+          if (Object.keys(req).length) {
+            await track.applyConstraints(req);
+          }
+        } catch {
+          // ignore — some browsers reject max constraints
+        }
+      }
+
       streamRef.current = stream;
       setCameraOpen(true);
-      // Wait for video element to mount
       requestAnimationFrame(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute("playsinline", "true");
           videoRef.current.play().catch(() => {});
         }
       });
@@ -147,21 +201,73 @@ export default function CashierPage() {
     }
   }
 
-  function capturePhoto() {
+  /** Grab a still frame at the best quality available (ImageCapture when supported). */
+  async function capturePhoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    const w = video.videoWidth || 1280;
-    const h = video.videoHeight || 720;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    let dataUrl: string | null = null;
+
+    // 1) Prefer ImageCapture — true still photo at sensor resolution (not video frame)
+    try {
+      const track = streamRef.current?.getVideoTracks()?.[0];
+      // ImageCapture is available on Chrome/Android; typed loosely for TS
+      const ImageCaptureCtor = (window as unknown as {
+        ImageCapture?: new (t: MediaStreamTrack) => {
+          takePhoto: (opts?: { imageWidth?: number; imageHeight?: number }) => Promise<Blob>;
+          getPhotoCapabilities?: () => Promise<{
+            imageWidth?: { min: number; max: number };
+            imageHeight?: { min: number; max: number };
+          }>;
+        };
+      }).ImageCapture;
+      if (track && ImageCaptureCtor) {
+        const ic = new ImageCaptureCtor(track);
+        let opts: { imageWidth?: number; imageHeight?: number } | undefined;
+        try {
+          if (typeof ic.getPhotoCapabilities === "function") {
+            const caps = await ic.getPhotoCapabilities();
+            if (caps.imageWidth?.max && caps.imageHeight?.max) {
+              opts = {
+                imageWidth: caps.imageWidth.max,
+                imageHeight: caps.imageHeight.max,
+              };
+            }
+          }
+        } catch {
+          /* optional */
+        }
+        const blob = await ic.takePhoto(opts);
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch (e) {
+      console.warn("ImageCapture failed, falling back to video frame", e);
+    }
+
+    // 2) Fallback: capture current video frame at full stream resolution
+    if (!dataUrl) {
+      const w = video.videoWidth || 1280;
+      const h = video.videoHeight || 720;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      // High-quality resampling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(video, 0, 0, w, h);
+      // Near-lossless JPEG for on-screen preview & OCR
+      dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    }
 
     stopCamera();
+    // Full-quality image is shown in the app after shoot
     setImagePreview(dataUrl);
     processReceiptImage(dataUrl);
   }
@@ -431,8 +537,8 @@ export default function CashierPage() {
     e.target.value = "";
   }
 
-  /** Shrink receipt image so POST body stays under Vercel limits (~4MB) */
-  async function compressImageForUpload(dataUrl: string, maxSide = 1280, quality = 0.72): Promise<string> {
+  /** Shrink receipt image for upload only (preview stays full quality). Keep readable for later review. */
+  async function compressImageForUpload(dataUrl: string, maxSide = 1920, quality = 0.85): Promise<string> {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -497,7 +603,7 @@ export default function CashierPage() {
         imagePayload = await compressImageForUpload(imagePreview);
         // If still huge (>2.5MB base64), drop image rather than fail the save
         if (imagePayload.length > 2.5 * 1024 * 1024) {
-          imagePayload = await compressImageForUpload(imagePreview, 800, 0.55);
+          imagePayload = await compressImageForUpload(imagePreview, 1280, 0.72);
         }
         if (imagePayload.length > 2.5 * 1024 * 1024) {
           console.warn("Image still too large, saving without image");
@@ -691,10 +797,11 @@ export default function CashierPage() {
                   muted
                   style={{
                     width: "100%",
-                    maxHeight: 420,
+                    maxHeight: 560,
+                    minHeight: 280,
                     borderRadius: 12,
                     background: "#000",
-                    objectFit: "cover",
+                    objectFit: "contain",
                     display: "block",
                   }}
                 />
@@ -735,10 +842,13 @@ export default function CashierPage() {
                   alt="Captured receipt"
                   style={{
                     maxWidth: "100%",
-                    maxHeight: 320,
+                    width: "100%",
+                    maxHeight: 560,
+                    objectFit: "contain",
                     borderRadius: 12,
                     border: "1px solid var(--border)",
                     display: "block",
+                    background: "#0f172a",
                   }}
                 />
                 <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
