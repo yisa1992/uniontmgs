@@ -268,6 +268,96 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+
+export async function updateTransaction(
+  id: string,
+  data: Partial<{
+    ftNumber: string;
+    totalAmount: number;
+    restaurantAmount: number;
+    cafeAmount: number;
+    butcheryAmount: number;
+    tip: number;
+    senderName: string;
+    receiverName: string;
+    tableNumber: string;
+    waiterId: string;
+    waiterName: string;
+    updatedAt: string;
+    updatedBy: string;
+    approvedBy: string;
+  }>
+): Promise<Transaction | null> {
+  const patch: Record<string, unknown> = {};
+
+  if (data.ftNumber !== undefined) patch.ft_number = data.ftNumber;
+  if (data.totalAmount !== undefined) patch.total_amount = data.totalAmount;
+  if (data.restaurantAmount !== undefined) patch.restaurant_amount = data.restaurantAmount;
+  if (data.cafeAmount !== undefined) patch.cafe_amount = data.cafeAmount;
+  if (data.butcheryAmount !== undefined) patch.butchery_amount = data.butcheryAmount;
+  if (data.tip !== undefined) patch.tip = data.tip;
+  if (data.senderName !== undefined) patch.sender_name = data.senderName;
+  if (data.receiverName !== undefined) patch.receiver_name = data.receiverName;
+  if (data.tableNumber !== undefined) patch.table_number = data.tableNumber;
+  if (data.waiterId !== undefined) {
+    let waiterId: string | null = data.waiterId || null;
+    if (waiterId) {
+      const { data: w } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .eq("id", waiterId)
+        .maybeSingle();
+      if (!w) waiterId = null;
+    }
+    patch.waiter_id = waiterId;
+  }
+  if (data.waiterName !== undefined) patch.waiter_name = data.waiterName;
+
+  // Optional audit fields — ignored by DB if columns don't exist yet
+  // Prefer only columns that are known to exist on transactions table.
+  // updated_at / updated_by / approved_by are best-effort.
+  if (data.updatedAt !== undefined) patch.updated_at = data.updatedAt;
+  if (data.updatedBy !== undefined) patch.updated_by = data.updatedBy;
+  if (data.approvedBy !== undefined) patch.approved_by = data.approvedBy;
+
+  if (Object.keys(patch).length === 0) {
+    const existing = await supabaseAdmin
+      .from("transactions")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (existing.error) throw new Error(existing.error.message);
+    return existing.data ? mapTransaction(existing.data) : null;
+  }
+
+  // Try full patch first; if optional audit columns are missing, retry without them
+  let { data: updated, error } = await supabaseAdmin
+    .from("transactions")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error && /column|does not exist/i.test(error.message)) {
+    const safe = { ...patch };
+    delete safe.updated_at;
+    delete safe.updated_by;
+    delete safe.approved_by;
+    const retry = await supabaseAdmin
+      .from("transactions")
+      .update(safe)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    updated = retry.data;
+    error = retry.error;
+  }
+
+  if (error) throw new Error(error.message);
+  return updated ? mapTransaction(updated) : null;
+}
+
+
 // ── Notifications ──────────────────────────────────────
 
 export async function getNotifications(): Promise<Notification[]> {
