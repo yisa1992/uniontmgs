@@ -119,9 +119,9 @@ export default function CashierReportPage() {
             return;
           }
           setUser(d.user);
-          // Default filter to current cashier when role is cashier
+          // Default filter to current cashier when role is cashier (trim for reliable match)
           if (d.user.role === "cashier") {
-            setCashierFilter(d.user.fullName || "");
+            setCashierFilter((d.user.fullName || "").trim());
           }
         }
       });
@@ -164,7 +164,18 @@ export default function CashierReportPage() {
   ).sort() as string[];
 
   let filtered = transactions.filter((t) => {
-    if (cashierFilter && t.cashierName !== cashierFilter) return false;
+    // Case-insensitive, trimmed name match (also match by cashierId when available)
+    if (cashierFilter) {
+      const want = cashierFilter.trim().toLowerCase();
+      const nameOk = (t.cashierName || "").trim().toLowerCase() === want;
+      // Also keep row if this is the logged-in cashier filtering themselves and cashierId matches
+      const selfById =
+        !!user &&
+        user.role === "cashier" &&
+        !!t.cashierId &&
+        t.cashierId === user.id;
+      if (!nameOk && !selfById) return false;
+    }
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -419,8 +430,11 @@ export default function CashierReportPage() {
                   {name}
                 </option>
               ))}
-              {user.fullName && !cashiers.includes(user.fullName) && (
-                <option value={user.fullName}>{user.fullName}</option>
+              {user.fullName &&
+                !cashiers.some(
+                  (c) => c.trim().toLowerCase() === user.fullName.trim().toLowerCase()
+                ) && (
+                <option value={user.fullName.trim()}>{user.fullName}</option>
               )}
             </select>
           </div>

@@ -31,17 +31,54 @@ export async function GET(req: NextRequest) {
   const cashierName = searchParams.get("cashierName");
   const todayOnly = searchParams.get("today") === "1" || searchParams.get("today") === "true";
 
+  // Business day in East Africa Time (Africa/Addis_Ababa, UTC+3)
+  const bizDay = (d: Date = new Date()) => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Addis_Ababa",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === "year")!.value;
+    const m = parts.find((p) => p.type === "month")!.value;
+    const day = parts.find((p) => p.type === "day")!.value;
+    return `${y}-${m}-${day}`;
+  };
+
   if (todayOnly) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    const start = `${y}-${m}-${d}`;
-    const end = `${y}-${m}-${d}T23:59:59.999`;
-    txs = txs.filter((t) => t.createdAt >= start && t.createdAt <= end);
+    const start = bizDay();
+    // Match any createdAt that falls on this calendar day in EAT.
+    // createdAt is usually ISO (…Z). Convert each to EAT calendar date for comparison.
+    txs = txs.filter((t) => {
+      if (!t.createdAt) return false;
+      try {
+        return bizDay(new Date(t.createdAt)) === start;
+      } catch {
+        // Fallback string compare for plain YYYY-MM-DD or local ISO without Z
+        return String(t.createdAt) >= start && String(t.createdAt) <= start + "T23:59:59.999";
+      }
+    });
   } else {
-    if (from) txs = txs.filter((t) => t.createdAt >= from);
-    if (to) txs = txs.filter((t) => t.createdAt <= to + "T23:59:59");
+    if (from) {
+      txs = txs.filter((t) => {
+        if (!t.createdAt) return false;
+        try {
+          return bizDay(new Date(t.createdAt)) >= from;
+        } catch {
+          return String(t.createdAt) >= from;
+        }
+      });
+    }
+    if (to) {
+      txs = txs.filter((t) => {
+        if (!t.createdAt) return false;
+        try {
+          return bizDay(new Date(t.createdAt)) <= to;
+        } catch {
+          return String(t.createdAt) <= to + "T23:59:59.999";
+        }
+      });
+    }
   }
 
   if (cashierId) txs = txs.filter((t) => t.cashierId === cashierId);
