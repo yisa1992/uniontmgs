@@ -734,22 +734,49 @@ export default function CashierPage() {
               type="button"
               onClick={() => router.push("/cashier/report")}
               style={{
-                background: "rgba(255,255,255,0.18)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.4)",
+                background: "#fff",
+                color: "#065f46",
+                border: "none",
                 borderRadius: 12,
-                padding: "0.7rem 1.15rem",
+                padding: "0.75rem 1.2rem",
                 fontWeight: 800,
                 fontSize: "0.95rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                flexShrink: 0,
               }}
             >
               📊 Today&apos;s Report
             </button>
           </div>
         </div>
+
+        {/* Always-visible report shortcut (mobile-friendly) */}
+        <button
+          type="button"
+          onClick={() => router.push("/cashier/report")}
+          style={{
+            width: "100%",
+            marginBottom: "1.25rem",
+            padding: "1rem 1.25rem",
+            borderRadius: 14,
+            border: "2px solid #0f766e",
+            background: "linear-gradient(135deg, #ecfdf5 0%, #ccfbf1 100%)",
+            color: "#065f46",
+            fontWeight: 800,
+            fontSize: "1.05rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.6rem",
+            boxShadow: "0 4px 16px rgba(15, 118, 110, 0.15)",
+          }}
+        >
+          <span style={{ fontSize: "1.25rem" }}>📊</span>
+          Today&apos;s Report — view &amp; edit transactions
+        </button>
 
         {error && (
           <div className="alert alert-error" style={{ marginBottom: "1rem", borderRadius: 12 }}>
