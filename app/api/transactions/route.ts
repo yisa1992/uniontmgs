@@ -21,10 +21,8 @@ export async function GET(req: NextRequest) {
     const existing = await getTransactionByFt(ft);
     // FT lookup only needs existence + light fields (not full image payload)
     if (existing && (existing as { imageData?: string }).imageData) {
-      const { imageData: _drop, ...light } = existing as {
-        imageData?: string;
-        [k: string]: unknown;
-      };
+      const light = { ...(existing as object) } as Record<string, unknown>;
+      delete light.imageData;
       return NextResponse.json({ exists: true, transaction: light });
     }
     return NextResponse.json({
@@ -92,18 +90,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Strip heavy image payloads from list responses (huge speed win)
-  if (!includeImage) {
-    txs = txs.map((t) => {
-      if (!(t as { imageData?: string }).imageData) return t;
-      const { imageData: _drop, ...rest } = t as {
-        imageData?: string;
-        [k: string]: unknown;
-      };
-      return rest as typeof t;
-    });
-  }
+  const payload = !includeImage
+    ? txs.map((t) => {
+        if (!(t as { imageData?: string }).imageData) return t;
+        const light = { ...(t as object) } as Record<string, unknown>;
+        delete light.imageData;
+        return light;
+      })
+    : txs;
 
-  return NextResponse.json({ transactions: txs });
+  return NextResponse.json({ transactions: payload });
 }
 
 export async function POST(req: NextRequest) {
