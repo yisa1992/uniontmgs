@@ -9,6 +9,11 @@ export type NotificationType =
   | 'product_deleted'
   | 'stock_adjusted'
   | 'price_updated'
+  | 'sale_returned'
+  | 'credit_paid'
+  | 'debit_paid'
+  | 'credit_overdue'
+  | 'debit_overdue'
   | 'other'
 
 export interface AppNotification {

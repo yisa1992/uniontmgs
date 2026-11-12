@@ -67,7 +67,7 @@ export default async function AdminGeneralReportPage({
     } else {
       sales = await getSalesReport({ limit: 5000, from, to })
       if (typeFilter !== 'all') {
-        sales = sales.filter((s) => matchSaleType(s.sale_type, typeFilter))
+        sales = sales.filter((s) => matchSaleType({ sale_type: s.sale_type }, typeFilter))
       }
       if (productQ) {
         sales = sales.filter(
