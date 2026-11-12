@@ -10,110 +10,84 @@ import {
   verifyPassword,
 } from "@/lib/db";
 
-function stripImage<T extends object>(row: T): Omit<T, "imageData"> {
-  // Avoid TS cast issues; drop heavy base64 field when present
-  const copy = { ...row } as T & { imageData?: unknown };
-  if ("imageData" in copy) {
-    delete copy.imageData;
-  }
-  return copy;
-}
-
 export async function GET(req: NextRequest) {
-  try {
-    const session = await getSession();
-    if (!requireRole(session, ["admin", "auditor", "cashier"])) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    const { searchParams } = new URL(req.url);
-    const ft = searchParams.get("ft");
-    if (ft) {
-      const existing = await getTransactionByFt(ft);
-      if (existing) {
-        return NextResponse.json({
-          exists: true,
-          transaction: stripImage(existing as object),
-        });
+  const session = await getSession();
+  if (!requireRole(session, ["admin", "auditor", "cashier"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { searchParams } = new URL(req.url);
+  const ft = searchParams.get("ft");
+  if (ft) {
+    const existing = await getTransactionByFt(ft);
+    return NextResponse.json({
+      exists: !!existing,
+      transaction: existing || null,
+    });
+  }
+  let txs = await getTransactions();
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  const cashierId = searchParams.get("cashierId");
+  const cashierName = searchParams.get("cashierName");
+  const todayOnly = searchParams.get("today") === "1" || searchParams.get("today") === "true";
+
+  // Business day in East Africa Time (Africa/Addis_Ababa, UTC+3)
+  const bizDay = (d: Date = new Date()) => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Addis_Ababa",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === "year")!.value;
+    const m = parts.find((p) => p.type === "month")!.value;
+    const day = parts.find((p) => p.type === "day")!.value;
+    return `${y}-${m}-${day}`;
+  };
+
+  if (todayOnly) {
+    const start = bizDay();
+    // Match any createdAt that falls on this calendar day in EAT.
+    // createdAt is usually ISO (…Z). Convert each to EAT calendar date for comparison.
+    txs = txs.filter((t) => {
+      if (!t.createdAt) return false;
+      try {
+        return bizDay(new Date(t.createdAt)) === start;
+      } catch {
+        // Fallback string compare for plain YYYY-MM-DD or local ISO without Z
+        return String(t.createdAt) >= start && String(t.createdAt) <= start + "T23:59:59.999";
       }
-      return NextResponse.json({
-        exists: false,
-        transaction: null,
-      });
-    }
-
-    // Single-transaction detail (includes image when requested)
-    const byId = searchParams.get("id");
-    const includeImage =
-      searchParams.get("includeImage") === "1" ||
-      searchParams.get("includeImage") === "true";
-
-    const raw = await getTransactions();
-    let txs = Array.isArray(raw) ? raw : [];
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-    const cashierId = searchParams.get("cashierId");
-    const cashierName = searchParams.get("cashierName");
-    const todayOnly =
-      searchParams.get("today") === "1" ||
-      searchParams.get("today") === "true";
-
-    // Business day in East Africa Time (Africa/Addis_Ababa, UTC+3)
-    const bizDay = (d: Date = new Date()) => {
-      const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Africa/Addis_Ababa",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).formatToParts(d);
-      const y = parts.find((p) => p.type === "year")!.value;
-      const m = parts.find((p) => p.type === "month")!.value;
-      const day = parts.find((p) => p.type === "day")!.value;
-      return `${y}-${m}-${day}`;
-    };
-
-    // today=1 or no range → filter to today (faster lists)
-    const effectiveFrom =
-      from || (todayOnly || (!from && !to) ? bizDay() : null);
-    const effectiveTo =
-      to || (todayOnly || (!from && !to) ? bizDay() : null);
-
-    if (effectiveFrom || effectiveTo) {
+    });
+  } else {
+    if (from) {
       txs = txs.filter((t) => {
         if (!t.createdAt) return false;
         try {
-          const day = bizDay(new Date(t.createdAt));
-          if (effectiveFrom && day < effectiveFrom) return false;
-          if (effectiveTo && day > effectiveTo) return false;
-          return true;
+          return bizDay(new Date(t.createdAt)) >= from;
         } catch {
-          const s = String(t.createdAt);
-          if (effectiveFrom && s < effectiveFrom) return false;
-          if (effectiveTo && s > effectiveTo + "T23:59:59.999") return false;
-          return true;
+          return String(t.createdAt) >= from;
         }
       });
     }
-
-    if (byId) {
-      txs = txs.filter((t) => String((t as { id?: string }).id) === byId);
+    if (to) {
+      txs = txs.filter((t) => {
+        if (!t.createdAt) return false;
+        try {
+          return bizDay(new Date(t.createdAt)) <= to;
+        } catch {
+          return String(t.createdAt) <= to + "T23:59:59.999";
+        }
+      });
     }
-    if (cashierId) txs = txs.filter((t) => t.cashierId === cashierId);
-    if (cashierName) {
-      const q = cashierName.toLowerCase();
-      txs = txs.filter((t) => (t.cashierName || "").toLowerCase() === q);
-    }
-
-    // Strip heavy image payloads from list responses (huge speed win)
-    const payload = !includeImage
-      ? txs.map((t) => stripImage(t as object))
-      : txs;
-
-    return NextResponse.json({ transactions: payload });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Failed to load transactions";
-    console.error("[transactions GET]", msg);
-    return NextResponse.json({ error: msg, transactions: [] }, { status: 500 });
   }
+
+  if (cashierId) txs = txs.filter((t) => t.cashierId === cashierId);
+  if (cashierName) {
+    const q = cashierName.toLowerCase();
+    txs = txs.filter((t) => (t.cashierName || "").toLowerCase() === q);
+  }
+
+  return NextResponse.json({ transactions: txs });
 }
 
 export async function POST(req: NextRequest) {
