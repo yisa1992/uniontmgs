@@ -6,6 +6,9 @@ import { useState, useTransition } from 'react'
 type Options = {
   showSaleType?: boolean
   showProductSearch?: boolean
+  showPayment?: boolean
+  showBank?: boolean
+  banks?: string[]
   preserve?: Record<string, string>
 }
 
@@ -22,6 +25,8 @@ export default function ReportFilters({
   const [from, setFrom] = useState(searchParams.get('from') || '')
   const [to, setTo] = useState(searchParams.get('to') || '')
   const [type, setType] = useState(searchParams.get('type') || 'all')
+  const [pay, setPay] = useState(searchParams.get('pay') || 'all')
+  const [bank, setBank] = useState(searchParams.get('bank') || '')
   const [q, setQ] = useState(searchParams.get('q') || '')
 
   function generate() {
@@ -29,6 +34,8 @@ export default function ReportFilters({
     if (from) params.set('from', from)
     if (to) params.set('to', to)
     if (options.showSaleType && type && type !== 'all') params.set('type', type)
+    if (options.showPayment && pay && pay !== 'all') params.set('pay', pay)
+    if (options.showBank && bank) params.set('bank', bank)
     if (options.showProductSearch && q.trim()) params.set('q', q.trim())
     params.set('generated', '1')
     if (options.preserve) {
@@ -75,6 +82,39 @@ export default function ReportFilters({
               <option value="card">Card</option>
               <option value="mb">MB</option>
               <option value="credit">Credit</option>
+            </select>
+          </label>
+        )}
+        {options.showPayment && (
+          <label className="block text-xs text-slate-400">
+            Payment
+            <select
+              value={pay}
+              onChange={(e) => setPay(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            >
+              <option value="all">All</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="mb">MB</option>
+              <option value="credit">Credit</option>
+            </select>
+          </label>
+        )}
+        {options.showBank && (
+          <label className="block text-xs text-slate-400">
+            Bank
+            <select
+              value={bank}
+              onChange={(e) => setBank(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            >
+              <option value="">All banks</option>
+              {(options.banks || []).map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
             </select>
           </label>
         )}

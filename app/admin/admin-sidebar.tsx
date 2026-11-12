@@ -34,6 +34,7 @@ const navItems = [
       { href: '/admin/sales/transactions', label: 'Transaction report' },
       { href: '/admin/sales/graphics', label: 'Graphic report' },
       { href: '/admin/closed-sales', label: 'Closed sales' },
+      { href: '/admin/reports', label: 'Cashier receipts' },
     ],
   },
   {

@@ -3,10 +3,29 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Notification, Transaction } from "@/lib/types";
 
+/** Ensure imageData is a valid data-URL the browser can display */
+function normalizeImageSrc(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (s.startsWith("data:image/")) return s;
+  // Raw base64 without prefix (common if stored that way)
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s.slice(0, 200)) && s.length > 100) {
+    return `data:image/jpeg;base64,${s.replace(/\s/g, "")}`;
+  }
+  // Already a URL
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("blob:")) {
+    return s;
+  }
+  return s;
+}
+
 export default function AuditorReportsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const todayParam = () => {
@@ -89,7 +108,9 @@ export default function AuditorReportsPage() {
   }
 
   async function viewTx(transactionId: string) {
-    // Show cached light version immediately, then fetch with image if needed
+    setImageError(false);
+    setImageLoading(true);
+    // Show cached light version immediately, then fetch with image
     const cached = transactions.find((t) => t.id === transactionId) || null;
     setSelectedTx(cached);
     try {
@@ -99,14 +120,23 @@ export default function AuditorReportsPage() {
       if (res.ok) {
         const d = await res.json();
         const full = (d.transactions || [])[0];
-        if (full) setSelectedTx(full);
+        if (full) {
+          setSelectedTx(full);
+        }
       }
     } catch {
       // keep cached
+    } finally {
+      setImageLoading(false);
     }
   }
 
   const unread = notifications.filter((n) => !n.read).length;
+  const imageSrc = selectedTx
+    ? normalizeImageSrc(
+        (selectedTx as { imageData?: unknown }).imageData
+      )
+    : null;
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "1.5rem" }}>
@@ -128,17 +158,17 @@ export default function AuditorReportsPage() {
                   background: "var(--danger)",
                   color: "white",
                   borderRadius: 999,
+                  fontSize: "0.75rem",
                   padding: "0.15rem 0.55rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
+                  verticalAlign: "middle",
                 }}
               >
-                {unread}
+                {unread} new
               </span>
             )}
           </h1>
-          <p style={{ color: "var(--muted)", margin: "0.25rem 0 0", fontSize: "0.9rem" }}>
-            Live feed of every transaction submitted by cashiers
+          <p style={{ margin: "0.35rem 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
+            Today&apos;s cashier transactions and receipt photos
           </p>
         </div>
         {unread > 0 && (
@@ -149,12 +179,18 @@ export default function AuditorReportsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loading notifications…</p>
-      ) : notifications.length === 0 ? (
-        <div className="card" style={{ padding: "3rem", textAlign: "center" }}>
-          <p style={{ color: "var(--muted)", margin: 0 }}>
-            No notifications yet. Waiting for cashier transactions…
-          </p>
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      ) : notifications.length === 0 && transactions.length === 0 ? (
+        <div
+          style={{
+            padding: "2rem",
+            textAlign: "center",
+            border: "1px dashed var(--border)",
+            borderRadius: 12,
+            color: "var(--muted)",
+          }}
+        >
+          No transactions yet today.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -163,16 +199,16 @@ export default function AuditorReportsPage() {
               key={n.id}
               className="card"
               style={{
-                padding: "1rem 1.25rem",
-                borderLeft: n.read
-                  ? "4px solid var(--border)"
-                  : "4px solid var(--primary)",
-                background: n.read ? "white" : "#f0f7ff",
+                padding: "1rem 1.15rem",
                 cursor: "pointer",
+                borderLeft: n.read
+                  ? "3px solid transparent"
+                  : "3px solid var(--primary, #2563eb)",
+                opacity: n.read ? 0.85 : 1,
               }}
               onClick={() => {
-                markRead(n.id);
-                viewTx(n.transactionId);
+                if (!n.read) markRead(n.id);
+                if (n.transactionId) viewTx(n.transactionId);
               }}
             >
               <div
@@ -184,7 +220,13 @@ export default function AuditorReportsPage() {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, marginBottom: "0.35rem", fontSize: "1.05rem" }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: "0.35rem",
+                      fontSize: "1.05rem",
+                    }}
+                  >
                     Table {(n as { tableNumber?: string }).tableNumber || "—"}
                   </div>
                   <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
@@ -214,6 +256,15 @@ export default function AuditorReportsPage() {
                       New
                     </span>
                   )}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--muted)",
+                      marginTop: 6,
+                    }}
+                  >
+                    Tap to view receipt
+                  </div>
                 </div>
               </div>
             </div>
@@ -231,7 +282,7 @@ export default function AuditorReportsPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 100,
+            zIndex: 50,
             padding: "1rem",
           }}
           onClick={() => setSelectedTx(null)}
@@ -241,9 +292,9 @@ export default function AuditorReportsPage() {
             style={{
               maxWidth: 520,
               width: "100%",
-              padding: "1.5rem",
               maxHeight: "90vh",
-              overflowY: "auto",
+              overflow: "auto",
+              padding: "1.25rem",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -260,13 +311,31 @@ export default function AuditorReportsPage() {
             >
               {(
                 [
-                  ["Table Number", (selectedTx as { tableNumber?: string }).tableNumber || "—"],
-                  ["Waiter", (selectedTx as { waiterName?: string }).waiterName || "—"],
+                  [
+                    "Table Number",
+                    (selectedTx as { tableNumber?: string }).tableNumber || "—",
+                  ],
+                  [
+                    "Waiter",
+                    (selectedTx as { waiterName?: string }).waiterName || "—",
+                  ],
                   ["FT Number", selectedTx.ftNumber],
-                  ["Total", `${selectedTx.totalAmount.toLocaleString()} ETB`],
-                  ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],
-                  ["Cafe", `${selectedTx.cafeAmount.toLocaleString()} ETB`],
-                  ["Butchery", `${selectedTx.butcheryAmount.toLocaleString()} ETB`],
+                  [
+                    "Total",
+                    `${selectedTx.totalAmount.toLocaleString()} ETB`,
+                  ],
+                  [
+                    "Restaurant",
+                    `${selectedTx.restaurantAmount.toLocaleString()} ETB`,
+                  ],
+                  [
+                    "Cafe",
+                    `${selectedTx.cafeAmount.toLocaleString()} ETB`,
+                  ],
+                  [
+                    "Butchery",
+                    `${selectedTx.butcheryAmount.toLocaleString()} ETB`,
+                  ],
                   ["Tip", `${selectedTx.tip.toLocaleString()} ETB`],
                   ["Cashier", selectedTx.cashierName],
                   ["Sender", selectedTx.senderName || "—"],
@@ -287,19 +356,63 @@ export default function AuditorReportsPage() {
                 </div>
               ))}
             </div>
-            {selectedTx.imageData && (
-              <div style={{ marginTop: "1rem" }}>
+
+            {/* Receipt image section */}
+            <div style={{ marginTop: "1.25rem" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Receipt photo
+              </div>
+              {imageLoading && (
+                <div
+                  style={{
+                    padding: "2rem",
+                    textAlign: "center",
+                    color: "var(--muted)",
+                    border: "1px dashed var(--border)",
+                    borderRadius: 8,
+                  }}
+                >
+                  Loading receipt image…
+                </div>
+              )}
+              {!imageLoading && imageSrc && !imageError && (
                 <img
-                  src={selectedTx.imageData}
+                  src={imageSrc}
                   alt="Receipt"
+                  onError={() => setImageError(true)}
                   style={{
                     maxWidth: "100%",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
+                    display: "block",
                   }}
                 />
-              </div>
-            )}
+              )}
+              {!imageLoading && (!imageSrc || imageError) && (
+                <div
+                  style={{
+                    padding: "1.5rem",
+                    textAlign: "center",
+                    color: "var(--muted)",
+                    border: "1px dashed var(--border)",
+                    borderRadius: 8,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  {imageError
+                    ? "Could not display the receipt image."
+                    : "No receipt photo was attached to this transaction."}
+                </div>
+              )}
+            </div>
+
             <button
               className="btn btn-outline"
               style={{ marginTop: "1.25rem", width: "100%" }}

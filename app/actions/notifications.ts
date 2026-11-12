@@ -182,11 +182,13 @@ export async function markAllNotificationsRead() {
       .from('notifications')
       .update({ is_read: true })
       .eq('is_read', false)
-    if (error) return { error: error.message }
+    if (error) {
+      console.error('markAllNotificationsRead', error.message)
+      return
+    }
     revalidatePath('/admin/notifications')
-    return { success: true }
-  } catch {
-    return { error: 'Failed' }
+  } catch (e) {
+    console.error('markAllNotificationsRead', e)
   }
 }
 
@@ -204,7 +206,7 @@ export async function deleteNotification(id: string) {
 
 /** Insert a sample notification so you can verify the UI works */
 export async function createTestNotification() {
-  return logNotification({
+  await logNotification({
     type: 'other',
     title: 'Test notification',
     message:
