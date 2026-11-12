@@ -3,6 +3,20 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Notification, Transaction } from "@/lib/types";
 
+/** Ensure imageData is a valid data-URL the browser can display */
+function normalizeImageSrc(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (s.startsWith("data:image/")) return s;
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s.slice(0, 200)) && s.length > 100) {
+    return `data:image/jpeg;base64,${s.replace(/\s/g, "")}`;
+  }
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("blob:")) return s;
+  return s;
+}
+
+
 export default function AuditorReportsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -246,10 +260,13 @@ export default function AuditorReportsPage() {
                 </div>
               ))}
             </div>
-            {selectedTx.imageData && (
+            {(() => {
+              const src = normalizeImageSrc((selectedTx as { imageData?: unknown }).imageData);
+              return src ? (
               <div style={{ marginTop: "1rem" }}>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>Receipt photo</div>
                 <img
-                  src={selectedTx.imageData}
+                  src={src}
                   alt="Receipt"
                   style={{
                     maxWidth: "100%",
@@ -258,7 +275,12 @@ export default function AuditorReportsPage() {
                   }}
                 />
               </div>
-            )}
+              ) : (
+              <div style={{ marginTop: "1rem", padding: "1rem", textAlign: "center", color: "var(--muted)", border: "1px dashed var(--border)", borderRadius: 8, fontSize: "0.9rem" }}>
+                No receipt photo was attached to this transaction.
+              </div>
+              );
+            })()}
             <button
               className="btn btn-outline"
               style={{ marginTop: "1.25rem", width: "100%" }}
