@@ -110,6 +110,19 @@ export default function SalesClosingPage() {
   const [shortageReason, setShortageReason] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
 
+  // Daily costs from cashiers
+  const [costsTotal, setCostsTotal] = useState(0);
+  const [costsList, setCostsList] = useState<
+    {
+      id: string;
+      name: string;
+      unitPrice: number;
+      quantity: number;
+      total: number;
+      cashierName?: string;
+    }[]
+  >([]);
+
   // Closed sales report panel
   const [closedRecords, setClosedRecords] = useState<ClosedSaleRecord[]>([]);
   const [showReport, setShowReport] = useState(false);
@@ -131,6 +144,17 @@ export default function SalesClosingPage() {
           isSameDay(t.createdAt, today)
         );
         setTransactions(txs);
+      }
+      // Load today's costs (all cashiers — auditor sees all)
+      try {
+        const cr = await fetch(`/api/costs?date=${encodeURIComponent(today)}`);
+        if (cr.ok) {
+          const cd = await cr.json();
+          setCostsList(cd.costs || []);
+          setCostsTotal(Number(cd.total) || 0);
+        }
+      } catch {
+        // ignore costs load failure
       }
     } catch {
       // ignore
@@ -228,12 +252,13 @@ export default function SalesClosingPage() {
   const zValue = parseFloat(zReport) || 0;
 
   /**
-   * Balance = (Cash + All MB + Tips + Unpaid) − Z Report
-   * Cash is the only extra field added on top of the original formula.
+   * Balance = (Cash + All MB + Tips + Unpaid + Costs) − Z Report
    */
   const balance = useMemo(() => {
-    return cashValue + allMbTotal + cashierTipTotal + unpaidSum - zValue;
-  }, [cashValue, allMbTotal, cashierTipTotal, unpaidSum, zValue]);
+    return (
+      cashValue + allMbTotal + cashierTipTotal + unpaidSum + costsTotal - zValue
+    );
+  }, [cashValue, allMbTotal, cashierTipTotal, unpaidSum, costsTotal, zValue]);
 
   const selectedCashierNames = selectedCashiers
     .map((id) => cashiers.find((c) => c.id === id)?.name || id)
@@ -936,6 +961,10 @@ export default function SalesClosingPage() {
                     <strong>{fmt(unpaidSum)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>+ Costs (cashier purchases today)</span>
+                    <strong>{fmt(costsTotal)} ETB</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>− Z Report</span>
                     <strong>{fmt(zValue)} ETB</strong>
                   </div>
@@ -967,8 +996,23 @@ export default function SalesClosingPage() {
                   </div>
                 </div>
                 <p style={{ margin: "10px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Balance = (Cash + All MB + Tips + Unpaid) − Z Report · if Z is greater, balance is negative
+                  Balance = (Cash + All MB + Tips + Unpaid + Costs) − Z Report · if Z is greater, balance is negative
                 </p>
+                {costsList.length > 0 && (
+                  <details style={{ marginTop: 10, fontSize: 12, color: "#475569" }}>
+                    <summary style={{ cursor: "pointer", fontWeight: 700 }}>
+                      View {costsList.length} cost item{costsList.length > 1 ? "s" : ""}
+                    </summary>
+                    <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                      {costsList.map((c) => (
+                        <li key={c.id}>
+                          {c.name} — {c.quantity} × {fmt(c.unitPrice)} = {fmt(c.total)} ETB
+                          {c.cashierName ? ` (${c.cashierName})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
 
               {/* Shortage reason — required when balance is negative */}
