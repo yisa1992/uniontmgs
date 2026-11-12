@@ -9,26 +9,11 @@ export default function AuditorReportsPage() {
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const todayParam = () => {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Africa/Addis_Ababa",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date());
-    const y = parts.find((p) => p.type === "year")!.value;
-    const m = parts.find((p) => p.type === "month")!.value;
-    const day = parts.find((p) => p.type === "day")!.value;
-    return `${y}-${m}-${day}`;
-  };
-
-  /** Full load once: notifications + today's transactions (no images) */
   const load = useCallback(async () => {
     try {
-      const day = todayParam();
       const [nRes, tRes] = await Promise.all([
         fetch("/api/notifications"),
-        fetch(`/api/transactions?from=${day}&to=${day}`),
+        fetch("/api/transactions"),
       ]);
       if (nRes.ok) {
         const d = await nRes.json();
@@ -45,28 +30,15 @@ export default function AuditorReportsPage() {
     }
   }, []);
 
-  /** Lightweight poll: notifications only (much faster) */
-  const pollNotifications = useCallback(async () => {
-    try {
-      const nRes = await fetch("/api/notifications");
-      if (nRes.ok) {
-        const d = await nRes.json();
-        setNotifications(d.notifications || []);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
   useEffect(() => {
     load();
   }, [load]);
 
-  // Poll notifications every 15s (not full transactions)
+  // Poll for new notifications every 8s
   useEffect(() => {
-    const id = setInterval(pollNotifications, 15000);
+    const id = setInterval(load, 8000);
     return () => clearInterval(id);
-  }, [pollNotifications]);
+  }, [load]);
 
   async function markRead(id: string) {
     await fetch("/api/notifications", {
@@ -88,22 +60,9 @@ export default function AuditorReportsPage() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }
 
-  async function viewTx(transactionId: string) {
-    // Show cached light version immediately, then fetch with image if needed
-    const cached = transactions.find((t) => t.id === transactionId) || null;
-    setSelectedTx(cached);
-    try {
-      const res = await fetch(
-        `/api/transactions?id=${encodeURIComponent(transactionId)}&includeImage=1`
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const full = (d.transactions || [])[0];
-        if (full) setSelectedTx(full);
-      }
-    } catch {
-      // keep cached
-    }
+  function viewTx(transactionId: string) {
+    const tx = transactions.find((t) => t.id === transactionId);
+    setSelectedTx(tx || null);
   }
 
   const unread = notifications.filter((n) => !n.read).length;

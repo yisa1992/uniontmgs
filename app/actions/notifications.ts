@@ -9,9 +9,6 @@ export type NotificationType =
   | 'product_deleted'
   | 'stock_adjusted'
   | 'price_updated'
-  | 'credit_paid'
-  | 'credit_overdue'
-  | 'sale_returned'
   | 'other'
 
 export interface AppNotification {
@@ -210,85 +207,4 @@ export async function createTestNotification() {
     message:
       'If you see this, the notifications table is working. Product changes will appear here too.',
   })
-}
-
-/**
- * Opportunistic scan for overdue credit sales (customer side).
- * Marks unpaid credits older than 7 days and logs one notification per sale
- * (skips if a recent credit_overdue notification already exists for that sale).
- */
-export async function checkAndNotifyOverdueCredits(): Promise<{
-  scanned?: number
-  notified?: number
-  error?: string
-}> {
-  try {
-    const admin = getAdminClient()
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 7)
-    const cutoffIso = cutoff.toISOString()
-
-    const { data: sales, error } = await admin
-      .from('sales')
-      .select(
-        'id, product_name, sale_type, credit_amount, total_amount, paid_amount, credit_customer_name, credit_phone, created_at'
-      )
-      .like('sale_type', 'credit%')
-      .lt('created_at', cutoffIso)
-      .limit(200)
-
-    if (error) {
-      // Column may be missing on older schemas — fail soft
-      console.error('[notifications] overdue scan failed:', error.message)
-      return { error: error.message }
-    }
-
-    let notified = 0
-    for (const sale of sales || []) {
-      const creditAmt =
-        sale.credit_amount != null
-          ? Number(sale.credit_amount)
-          : Number(sale.total_amount || 0)
-      const paid = Number(sale.paid_amount || 0)
-      const outstanding = Math.max(0, creditAmt - paid)
-      if (outstanding <= 0) continue
-
-      // Avoid duplicate overdue alerts for the same sale in the last 3 days
-      const since = new Date()
-      since.setDate(since.getDate() - 3)
-      const { data: existing } = await admin
-        .from('notifications')
-        .select('id')
-        .eq('type', 'credit_overdue')
-        .eq('entity_id', sale.id)
-        .gte('created_at', since.toISOString())
-        .limit(1)
-
-      if (existing && existing.length > 0) continue
-
-      const customer =
-        (sale.credit_customer_name as string) ||
-        (sale.credit_phone as string) ||
-        'customer'
-      const productName = (sale.product_name as string) || 'sale'
-      const daysOpen = Math.floor(
-        (Date.now() - new Date(sale.created_at).getTime()) / 86400000
-      )
-
-      await logNotification({
-        type: 'credit_overdue',
-        title: 'Overdue credit',
-        message: `${customer} · ${productName}: ${outstanding.toFixed(2)} unpaid (${daysOpen} days)`,
-        entity_id: sale.id,
-        entity_name: productName,
-      })
-      notified += 1
-    }
-
-    return { scanned: (sales || []).length, notified }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Overdue scan failed'
-    console.error('[notifications]', msg)
-    return { error: msg }
-  }
 }

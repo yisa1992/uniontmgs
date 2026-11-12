@@ -8,6 +8,7 @@ import { createToken, setSessionCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    await seedIfEmpty();
     const { username, password } = await req.json();
     if (!username || !password) {
       return NextResponse.json(
@@ -15,14 +16,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Fast path: look up user first. Only seed when DB looks empty.
-    let user = await getUserByUsername(username);
-    if (!user) {
-      await seedIfEmpty();
-      user = await getUserByUsername(username);
-    }
-
+    const user = await getUserByUsername(username);
     if (!user || !user.active) {
       return NextResponse.json(
         { error: "Invalid credentials" },

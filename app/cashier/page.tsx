@@ -37,25 +37,6 @@ export default function CashierPage() {
   const [fieldsLocked, setFieldsLocked] = useState(true);
   const scanLoopRef = useRef<number | null>(null);
 
-  // Costs (purchases made during the day)
-  const [showCosts, setShowCosts] = useState(false);
-  const [costs, setCosts] = useState<
-    {
-      id: string;
-      name: string;
-      unitPrice: number;
-      quantity: number;
-      total: number;
-      createdAt?: string;
-    }[]
-  >([]);
-  const [costName, setCostName] = useState("");
-  const [costUnitPrice, setCostUnitPrice] = useState("");
-  const [costQty, setCostQty] = useState("1");
-  const [costSaving, setCostSaving] = useState(false);
-  const [costMsg, setCostMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [costsLoading, setCostsLoading] = useState(false);
-
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => {
@@ -96,83 +77,6 @@ export default function CashierPage() {
       stopCamera();
     };
   }, []);
-
-  const loadCosts = useCallback(async () => {
-    setCostsLoading(true);
-    try {
-      const res = await fetch("/api/costs");
-      if (res.ok) {
-        const d = await res.json();
-        setCosts(d.costs || []);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setCostsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showCosts) loadCosts();
-  }, [showCosts, loadCosts]);
-
-  async function handleAddCost(e: React.FormEvent) {
-    e.preventDefault();
-    setCostMsg(null);
-    const name = costName.trim();
-    const unitPrice = parseFloat(costUnitPrice) || 0;
-    const quantity = parseFloat(costQty) || 0;
-    if (!name) {
-      setCostMsg({ type: "err", text: "Enter item name" });
-      return;
-    }
-    if (unitPrice < 0 || quantity <= 0) {
-      setCostMsg({ type: "err", text: "Enter valid unit price and quantity" });
-      return;
-    }
-    setCostSaving(true);
-    try {
-      const res = await fetch("/api/costs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, unitPrice, quantity }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setCostMsg({ type: "err", text: data.error || "Failed to save cost" });
-        setCostSaving(false);
-        return;
-      }
-      setCosts((prev) => [data.cost, ...prev]);
-      setCostName("");
-      setCostUnitPrice("");
-      setCostQty("1");
-      setCostMsg({
-        type: "ok",
-        text: `Saved: ${name} × ${quantity} = ${(unitPrice * quantity).toFixed(2)} ETB`,
-      });
-    } catch {
-      setCostMsg({ type: "err", text: "Network error — try again" });
-    } finally {
-      setCostSaving(false);
-    }
-  }
-
-  async function handleDeleteCost(id: string) {
-    if (!confirm("Delete this cost?")) return;
-    try {
-      const res = await fetch(`/api/costs?id=${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setCosts((prev) => prev.filter((c) => c.id !== id));
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const costsTotal = costs.reduce((s, c) => s + (Number(c.total) || 0), 0);
 
   const autoTip = useCallback(() => {
     const total = parseFloat(totalAmount) || 0;
@@ -826,259 +730,27 @@ export default function CashierPage() {
                 Scan the receipt QR or photo — everything fills in automatically. Just confirm the split &amp; submit.
               </p>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => setShowCosts((v) => !v)}
-                style={{
-                  background: showCosts ? "#fef3c7" : "#fff",
-                  color: "#92400e",
-                  border: showCosts ? "2px solid #f59e0b" : "none",
-                  borderRadius: 12,
-                  padding: "0.75rem 1.2rem",
-                  fontWeight: 800,
-                  fontSize: "0.95rem",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
-                  flexShrink: 0,
-                }}
-              >
-                🧾 Costs
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/cashier/report")}
-                style={{
-                  background: "#fff",
-                  color: "#065f46",
-                  border: "none",
-                  borderRadius: 12,
-                  padding: "0.75rem 1.2rem",
-                  fontWeight: 800,
-                  fontSize: "0.95rem",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
-                  flexShrink: 0,
-                }}
-              >
-                📊 Today&apos;s Report
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/cashier/report")}
+              style={{
+                background: "#fff",
+                color: "#065f46",
+                border: "none",
+                borderRadius: 12,
+                padding: "0.75rem 1.2rem",
+                fontWeight: 800,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                flexShrink: 0,
+              }}
+            >
+              📊 Today&apos;s Report
+            </button>
           </div>
         </div>
-
-        {/* Costs panel */}
-        {showCosts && (
-          <div
-            style={{
-              marginBottom: "1.25rem",
-              padding: "1.25rem 1.35rem",
-              borderRadius: 16,
-              border: "2px solid #fbbf24",
-              background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-              boxShadow: "0 4px 20px rgba(245, 158, 11, 0.15)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#92400e" }}>
-                🧾 Daily Costs / Purchases
-              </h2>
-              <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#b45309" }}>
-                Total: {costsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
-              </span>
-            </div>
-            <p style={{ margin: "0 0 1rem", fontSize: 13, color: "#78350f" }}>
-              Add items bought during the day (name, unit price × quantity). These costs go to the auditor at sales closing.
-            </p>
-
-            <form
-              onSubmit={handleAddCost}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr auto",
-                gap: 10,
-                marginBottom: "1rem",
-                alignItems: "end",
-              }}
-            >
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#78350f", marginBottom: 4 }}>
-                  Item name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cooking oil"
-                  value={costName}
-                  onChange={(e) => setCostName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #fcd34d",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#78350f", marginBottom: 4 }}>
-                  Unit price
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={costUnitPrice}
-                  onChange={(e) => setCostUnitPrice(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #fcd34d",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#78350f", marginBottom: 4 }}>
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="0.001"
-                  step="any"
-                  placeholder="1"
-                  value={costQty}
-                  onChange={(e) => setCostQty(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #fcd34d",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={costSaving}
-                style={{
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: costSaving ? "#d1d5db" : "#d97706",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: 14,
-                  cursor: costSaving ? "not-allowed" : "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {costSaving ? "Saving…" : "Add cost"}
-              </button>
-            </form>
-
-            {(parseFloat(costUnitPrice) > 0 || parseFloat(costQty) > 0) && (
-              <p style={{ margin: "0 0 0.75rem", fontSize: 13, color: "#92400e", fontWeight: 700 }}>
-                Line total:{" "}
-                {(
-                  (parseFloat(costUnitPrice) || 0) * (parseFloat(costQty) || 0)
-                ).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                ETB
-              </p>
-            )}
-
-            {costMsg && (
-              <div
-                style={{
-                  marginBottom: "0.75rem",
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: costMsg.type === "ok" ? "#ecfdf5" : "#fef2f2",
-                  color: costMsg.type === "ok" ? "#065f46" : "#991b1b",
-                }}
-              >
-                {costMsg.text}
-              </div>
-            )}
-
-            {costsLoading ? (
-              <p style={{ color: "#92400e", fontSize: 13 }}>Loading costs…</p>
-            ) : costs.length === 0 ? (
-              <p style={{ color: "#a16207", fontSize: 13, margin: 0 }}>No costs added today yet.</p>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: "#fde68a", textAlign: "left" }}>
-                      <th style={{ padding: "8px 10px" }}>Name</th>
-                      <th style={{ padding: "8px 10px" }}>Unit price</th>
-                      <th style={{ padding: "8px 10px" }}>Qty</th>
-                      <th style={{ padding: "8px 10px" }}>Total</th>
-                      <th style={{ padding: "8px 10px" }} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {costs.map((c) => (
-                      <tr key={c.id} style={{ borderBottom: "1px solid #fde68a" }}>
-                        <td style={{ padding: "8px 10px", fontWeight: 600 }}>{c.name}</td>
-                        <td style={{ padding: "8px 10px" }}>
-                          {Number(c.unitPrice).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </td>
-                        <td style={{ padding: "8px 10px" }}>{c.quantity}</td>
-                        <td style={{ padding: "8px 10px", fontWeight: 700 }}>
-                          {Number(c.total).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          ETB
-                        </td>
-                        <td style={{ padding: "8px 10px" }}>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCost(c.id)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "#dc2626",
-                              cursor: "pointer",
-                              fontWeight: 700,
-                              fontSize: 13,
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Always-visible report shortcut (mobile-friendly) */}
         <button
