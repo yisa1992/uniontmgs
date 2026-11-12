@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function UpdatePasswordPage() {
-  redirect("/admin-login");
+export default function Page() {
+  redirect("/login");
 }

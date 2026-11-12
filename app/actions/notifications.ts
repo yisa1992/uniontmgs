@@ -10,9 +10,6 @@ export type NotificationType =
   | 'stock_adjusted'
   | 'price_updated'
   | 'other'
-  | 'debit_paid'
-  | 'sale_returned'
-  | 'credit_paid'
 
 export interface AppNotification {
   id: string
@@ -182,13 +179,11 @@ export async function markAllNotificationsRead() {
       .from('notifications')
       .update({ is_read: true })
       .eq('is_read', false)
-    if (error) {
-      console.error('markAllNotificationsRead', error.message)
-      return
-    }
+    if (error) return { error: error.message }
     revalidatePath('/admin/notifications')
-  } catch (e) {
-    console.error('markAllNotificationsRead', e)
+    return { success: true }
+  } catch {
+    return { error: 'Failed' }
   }
 }
 
@@ -206,26 +201,10 @@ export async function deleteNotification(id: string) {
 
 /** Insert a sample notification so you can verify the UI works */
 export async function createTestNotification() {
-  await logNotification({
+  return logNotification({
     type: 'other',
     title: 'Test notification',
     message:
       'If you see this, the notifications table is working. Product changes will appear here too.',
   })
-}
-
-/**
- * Scan for overdue credit sales / purchases and create notifications.
- * Safe no-op when tables or columns are missing — keeps report pages building.
- */
-export async function checkAndNotifyOverdueCredits(): Promise<{
-  checked: number
-  notified: number
-}> {
-  try {
-    // Intentionally light: full overdue scan can be wired to sales/products later.
-    return { checked: 0, notified: 0 }
-  } catch {
-    return { checked: 0, notified: 0 }
-  }
 }

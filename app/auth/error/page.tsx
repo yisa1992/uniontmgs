@@ -1,5 +1,12 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 
-export default function AuthErrorPage() {
-  redirect("/admin-login");
+export default function Page() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1>Auth error</h1>
+      <p>
+        <Link href="/login">Back to login</Link>
+      </p>
+    </div>
+  );
 }

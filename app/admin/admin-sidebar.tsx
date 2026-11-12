@@ -4,53 +4,47 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logoutAdmin } from '@/app/actions/auth'
+import { useLanguage } from '@/app/components/LanguageToggle'
+import LanguageToggle from '@/app/components/LanguageToggle'
+import { t, type TranslationKey } from '@/app/lib/i18n'
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: '🏠' },
-  { href: '/admin/notifications', label: 'Notifications', icon: '🔔' },
-  { href: '/admin/profile', label: 'Profile', icon: '👤' },
-  { href: '/admin/users', label: 'Users', icon: '👥' },
+const navItems: {
+  href: string
+  labelKey: TranslationKey
+  icon: string
+  children?: { href: string; labelKey: TranslationKey }[]
+}[] = [
+  { href: '/admin', labelKey: 'dashboard', icon: '🏠' },
+  { href: '/admin/profile', labelKey: 'profile', icon: '👤' },
+  { href: '/admin/users', labelKey: 'users', icon: '👥' },
   {
     href: '/admin/inventory',
-    label: 'Inventory Control',
+    labelKey: 'inventory',
     icon: '📦',
     children: [
-      { href: '/admin/inventory/new', label: 'Add new products' },
-      { href: '/admin/inventory/stock', label: 'Adjust stock levels' },
-      { href: '/admin/inventory/pricing', label: 'Update pricing' },
-      { href: '/admin/inventory/alerts', label: 'Low stock alerts' },
+      { href: '/admin/inventory', labelKey: 'allProducts' },
+      { href: '/admin/inventory/new', labelKey: 'addNewProducts' },
+      { href: '/admin/inventory/stock', labelKey: 'adjustStock' },
+      { href: '/admin/inventory/pricing', labelKey: 'updatePricing' },
+      { href: '/admin/inventory/alerts', labelKey: 'lowStockAlerts' },
     ],
   },
   {
     href: '/admin/sales',
-    label: 'Sales & Analysis',
+    labelKey: 'sales',
     icon: '📊',
     children: [
-      { href: '/admin/sales', label: 'Sales page' },
-      { href: '/admin/sales/report', label: 'General report' },
-      { href: '/admin/sales/profit', label: 'Profit report' },
-      { href: '/admin/sales/credit', label: 'Credit report' },
-      { href: '/admin/sales/debit', label: 'Debit' },
-      { href: '/admin/sales/transactions', label: 'Transaction report' },
-      { href: '/admin/sales/graphics', label: 'Graphic report' },
-      { href: '/admin/closed-sales', label: 'Closed sales' },
-      { href: '/admin/reports', label: 'Cashier receipts' },
-    ],
-  },
-  {
-    href: '/admin/costs',
-    label: 'Costs report',
-    icon: '🧾',
-    children: [
-      { href: '/admin/costs?mode=daily', label: 'Daily costs' },
-      { href: '/admin/costs?mode=weekly', label: 'Weekly costs' },
-      { href: '/admin/costs?mode=monthly', label: 'Monthly costs' },
-      { href: '/admin/costs?mode=range', label: 'Costs by date range' },
+      { href: '/admin/sales', labelKey: 'salesOverview' },
+      { href: '/admin/sales/report', labelKey: 'generalReport' },
+      { href: '/admin/sales/profit', labelKey: 'profitReport' },
+      { href: '/admin/sales/credit', labelKey: 'creditReport' },
+      { href: '/admin/sales/debit', labelKey: 'debit' },
+      { href: '/admin/sales/transactions', labelKey: 'transactionReport' },
+      { href: '/admin/sales/graphics', labelKey: 'graphicReport' },
     ],
   },
 ]
 
-/** Three horizontal lines — menu button logo */
 function ThreeLineIcon({ open }: { open: boolean }) {
   return (
     <span className="relative flex flex-col justify-center items-center w-6 h-6" aria-hidden>
@@ -81,10 +75,28 @@ export default function AdminSidebar({
   unreadCount?: number
 }) {
   const pathname = usePathname()
+  const lang = useLanguage()
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     setOpen(false)
+  }, [pathname])
+
+  // Auto-expand group when on a child route
+  useEffect(() => {
+    const next: Record<string, boolean> = {}
+    for (const item of navItems) {
+      if (!item.children) continue
+      const onGroup =
+        pathname === item.href ||
+        pathname.startsWith(item.href + '/') ||
+        item.children.some(
+          (c) => pathname === c.href || pathname.startsWith(c.href + '/')
+        )
+      if (onGroup) next[item.href] = true
+    }
+    setExpanded((prev) => ({ ...prev, ...next }))
   }, [pathname])
 
   useEffect(() => {
@@ -104,14 +116,23 @@ export default function AdminSidebar({
   }, [open])
 
   function isActive(href: string) {
-    const pathOnly = href.split('?')[0]
-    if (pathOnly === '/admin') return pathname === '/admin'
-    return pathname === pathOnly || pathname.startsWith(pathOnly + '/')
+    if (href === '/admin') return pathname === '/admin'
+    if (href === '/admin/sales') {
+      return pathname === '/admin/sales'
+    }
+    if (href === '/admin/inventory') {
+      return pathname === '/admin/inventory'
+    }
+    return pathname === href || pathname.startsWith(href + '/')
+  }
+
+  function toggleGroup(href: string) {
+    setExpanded((prev) => ({ ...prev, [href]: !prev[href] }))
   }
 
   return (
     <>
-      {/* Fixed side button — 3-line logo; opens nav list on click */}
+      {/* Menu — left */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -127,10 +148,10 @@ export default function AdminSidebar({
         <ThreeLineIcon open={open} />
       </button>
 
-      {/* Notification bell — always visible */}
+      {/* Notifications — opposite side (right) */}
       <Link
         href="/admin/notifications"
-        className="fixed top-4 left-[4.25rem] z-[60] flex items-center justify-center w-11 h-11 rounded-xl border shadow-lg bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:border-slate-500 transition"
+        className="fixed top-4 right-4 z-[60] flex items-center justify-center w-11 h-11 rounded-xl border shadow-lg bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:border-slate-500 transition"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
       >
         <span className="text-lg relative">
@@ -143,7 +164,6 @@ export default function AdminSidebar({
         </span>
       </Link>
 
-      {/* Dark overlay when menu is open */}
       <div
         className={`fixed inset-0 z-40 bg-black/55 transition-opacity duration-200 ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -152,31 +172,43 @@ export default function AdminSidebar({
         aria-hidden={!open}
       />
 
-      {/* Navigation list — slides in only when button is clicked */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-72 max-w-[85vw] border-r border-slate-800 bg-slate-900 flex flex-col shadow-2xl transition-transform duration-250 ease-out ${
+        className={`fixed top-0 left-0 z-50 h-full w-[min(100%,20rem)] max-w-[85vw] bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col transition-transform duration-200 ease-out ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between gap-2 pl-16">
+        <div className="p-4 border-b border-slate-800 flex items-start justify-between gap-2">
           <div>
             <Link
               href="/admin"
-              className="font-semibold text-white hover:text-purple-300 text-lg"
+              className="font-semibold text-white hover:text-purple-300"
               onClick={() => setOpen(false)}
             >
-              🛡️ Admin Terminal
+              {t(lang, 'adminTerminal')}
             </Link>
             <p className="text-xs text-slate-500 mt-0.5">{staffLabel}</p>
+            <div className="mt-2"><LanguageToggle /></div>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="w-9 h-9 rounded-lg bg-slate-800 text-slate-300 text-lg"
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {navItems.map((item) => {
             const active = isActive(item.href)
-            return (
-              <div key={item.href + item.label}>
+            const hasChildren = !!(item.children && item.children.length)
+            const isOpen = hasChildren && !!expanded[item.href]
+
+            if (!hasChildren) {
+              return (
                 <Link
+                  key={item.href + item.labelKey}
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition ${
@@ -186,24 +218,61 @@ export default function AdminSidebar({
                   }`}
                 >
                   <span className="text-base">{item.icon}</span>
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{t(lang, item.labelKey)}</span>
                 </Link>
-                {item.children && (
-                  <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
-                    {item.children.map((child) => {
-                      const childActive = pathname === child.href
+              )
+            }
+
+            return (
+              <div key={item.href + item.labelKey} className="space-y-0.5">
+                <div className="flex items-stretch gap-1">
+                  <Link
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition min-w-0 ${
+                      active
+                        ? 'bg-purple-600/20 text-purple-200 border border-purple-700/40'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-base shrink-0">{item.icon}</span>
+                    <span className="font-medium truncate">{t(lang, item.labelKey)}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(item.href)}
+                    className={`w-10 rounded-xl border text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0 ${
+                      active ? 'border-purple-700/40' : 'border-slate-800'
+                    }`}
+                    aria-label={isOpen ? 'Collapse' : 'Expand'}
+                    aria-expanded={isOpen}
+                  >
+                    <span
+                      className={`inline-block transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    >
+                      ▾
+                    </span>
+                  </button>
+                </div>
+                {isOpen && (
+                  <div className="ml-3 space-y-0.5 border-l border-slate-700 pl-3 py-1">
+                    {item.children!.map((child) => {
+                      const childActive =
+                        pathname === child.href ||
+                        (child.href !== item.href &&
+                          pathname.startsWith(child.href + '/'))
                       return (
                         <Link
                           key={child.href}
                           href={child.href}
                           onClick={() => setOpen(false)}
-                          className={`block px-2 py-1.5 rounded-lg text-xs transition ${
+                          className={`block px-2.5 py-2 rounded-lg text-sm transition ${
                             childActive
-                              ? 'text-purple-300 bg-purple-950/40'
+                              ? 'text-purple-200 bg-purple-950/50 font-medium'
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                           }`}
                         >
-                          {child.label}
+                          {t(lang, child.labelKey)}
                         </Link>
                       )
                     })}
@@ -212,22 +281,41 @@ export default function AdminSidebar({
               </div>
             )
           })}
+
+          {/* Notifications also in menu for convenience */}
+          <Link
+            href="/admin/notifications"
+            onClick={() => setOpen(false)}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition ${
+              pathname.startsWith('/admin/notifications')
+                ? 'bg-purple-600/20 text-purple-200 border border-purple-700/40'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <span className="text-base">🔔</span>
+            <span className="font-medium">{t(lang, 'notifications')}</span>
+            {unreadCount > 0 && (
+              <span className="ml-auto text-[11px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </Link>
         </nav>
 
         <div className="p-3 border-t border-slate-800">
           <form action={logoutAdmin}>
             <button
               type="submit"
-              className="w-full text-sm px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+              className="w-full text-sm px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              Log out
+              {t(lang, 'logout')}
             </button>
           </form>
         </div>
       </aside>
 
-      {/* Spacer so page content is not under the floating buttons */}
-      <div className="h-16" />
+      {/* Spacer under floating buttons */}
+      <div className="h-16 shrink-0" />
     </>
   )
 }
