@@ -95,7 +95,11 @@ export default function SalesClosingPage() {
   const [active, setActive] = useState<Section>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCashier, setSelectedCashier] = useState("");
+  /** Up to 2 cashiers for tips */
+  const [selectedCashiers, setSelectedCashiers] = useState<string[]>([]);
+  /** Physical cash counted — extra input */
+  const [cashAmount, setCashAmount] = useState("");
+  /** Z Report amount */
   const [zReport, setZReport] = useState("");
   const [showUnpaid, setShowUnpaid] = useState(false);
   const [unpaidRows, setUnpaidRows] = useState<UnpaidRow[]>([
@@ -138,7 +142,8 @@ export default function SalesClosingPage() {
   useEffect(() => {
     if (active) {
       load();
-      setSelectedCashier("");
+      setSelectedCashiers([]);
+      setCashAmount("");
       setZReport("");
       setShowUnpaid(false);
       setUnpaidRows([{ id: newId(), name: "", amount: "", phone: "" }]);
@@ -191,12 +196,17 @@ export default function SalesClosingPage() {
     );
   }, [transactions, sectionMeta]);
 
+  /** All MB = department total from today's transactions (bank/FT receipts) */
+  const allMbTotal = departmentTotal;
+
   const cashierTxs = useMemo(() => {
-    if (!selectedCashier) return [];
+    if (selectedCashiers.length === 0) return [];
     return transactions.filter(
-      (t) => t.cashierId === selectedCashier || t.cashierName === selectedCashier
+      (t) =>
+        selectedCashiers.includes(t.cashierId || "") ||
+        selectedCashiers.includes(t.cashierName || "")
     );
-  }, [transactions, selectedCashier]);
+  }, [transactions, selectedCashiers]);
 
   const cashierDeptTotal = useMemo(() => {
     if (!sectionMeta) return 0;
@@ -214,38 +224,49 @@ export default function SalesClosingPage() {
     return unpaidRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
   }, [unpaidRows]);
 
+  const cashValue = parseFloat(cashAmount) || 0;
   const zValue = parseFloat(zReport) || 0;
 
+  /**
+   * Balance = (Cash + All MB + Tips + Unpaid) − Z Report
+   * Cash is the only extra field added on top of the original formula.
+   */
   const balance = useMemo(() => {
-    // Cashier selection only affects tips.
-    // Department total = ALL cashiers for restaurant/cafe/butchery today.
-    // When Z report > sums → negative; when Z < sums → positive
-    return (departmentTotal + cashierTipTotal + unpaidSum) - zValue;
-  }, [zValue, departmentTotal, cashierTipTotal, unpaidSum]);
+    return cashValue + allMbTotal + cashierTipTotal + unpaidSum - zValue;
+  }, [cashValue, allMbTotal, cashierTipTotal, unpaidSum, zValue]);
 
-  const selectedCashierName =
-    cashiers.find((c) => c.id === selectedCashier)?.name || selectedCashier;
+  const selectedCashierNames = selectedCashiers
+    .map((id) => cashiers.find((c) => c.id === id)?.name || id)
+    .filter(Boolean);
+  const selectedCashierName = selectedCashierNames.join(" + ") || "";
+  const primaryCashierId = selectedCashiers[0] || "";
+  const primaryCashierName = selectedCashierNames[0] || "";
 
-  // Once per day: same date + department + cashier already submitted (from server)
+  // Once per day: same date + department + any of the selected cashiers already submitted
   const alreadyClosedToday = useMemo(() => {
-    if (!sectionMeta || !selectedCashier) return false;
+    if (!sectionMeta || selectedCashiers.length === 0) return false;
     return closedRecords.some(
       (r) =>
         r.date === today &&
         r.department === sectionMeta.id &&
-        (r.cashierId === selectedCashier || r.cashierName === selectedCashier)
+        selectedCashiers.some(
+          (id) => r.cashierId === id || r.cashierName === id
+        )
     );
-  }, [sectionMeta, selectedCashier, today, closedRecords]);
+  }, [sectionMeta, selectedCashiers, today, closedRecords]);
 
   const isShortage = balance < 0;
 
   const canSubmit =
-    !!selectedCashier &&
+    selectedCashiers.length > 0 &&
+    cashAmount !== "" &&
     zReport !== "" &&
+    !Number.isNaN(cashValue) &&
     !Number.isNaN(zValue) &&
     !submitting &&
     !alreadyClosedToday &&
-    (!isShortage || (shortageReason.trim().length > 0 && responsiblePerson.trim().length > 0));
+    (!isShortage ||
+      (shortageReason.trim().length > 0 && responsiblePerson.trim().length > 0));
 
   function addUnpaidRow() {
     setUnpaidRows((prev) => [
@@ -270,7 +291,7 @@ export default function SalesClosingPage() {
   }
 
   async function handleSubmit() {
-    if (!sectionMeta || !selectedCashier) return;
+    if (!sectionMeta || selectedCashiers.length === 0) return;
     setSubmitting(true);
     setSubmitMsg(null);
 
@@ -290,8 +311,8 @@ export default function SalesClosingPage() {
         date: today,
         department: sectionMeta.id,
         departmentLabel: sectionMeta.label,
-        cashierId: selectedCashier,
-        cashierName: selectedCashierName,
+        cashierId: primaryCashierId,
+        cashierName: selectedCashierName, // "Name1 + Name2" when two selected
         departmentTotal,
         cashierDeptTotal,
         cashierTipTotal,
@@ -305,6 +326,7 @@ export default function SalesClosingPage() {
           })),
         zReport: zValue,
         balance,
+        // Cash is used in balance calc; stored in shortageReason prefix when needed, or omit
         shortageReason: balance < 0 ? shortageReason.trim() : undefined,
         responsiblePerson: balance < 0 ? responsiblePerson.trim() : undefined,
       };
@@ -328,13 +350,27 @@ export default function SalesClosingPage() {
       setClosedRecords((prev) => [data.record, ...prev.filter((r) => r.id !== data.record?.id)]);
       setSubmitMsg({
         type: "ok",
-        text: `Sales closed successfully for ${sectionMeta.label} · ${selectedCashierName} · ${today}. Submit is locked for this cashier today. You can view it in Closed Sales Report.`,
+        text: `Sales closed successfully for ${sectionMeta.label} · ${selectedCashierName} · ${today}. Submit is locked for selected cashier(s) today. You can view it in Closed Sales Report.`,
       });
     } catch {
       setSubmitMsg({ type: "err", text: "Failed to save closed sale. Please try again." });
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function toggleCashier(id: string) {
+    setSelectedCashiers((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
+      }
+      if (prev.length >= 2) {
+        // replace the second one
+        return [prev[0], id];
+      }
+      return [...prev, id];
+    });
+    setSubmitMsg(null);
   }
 
   const inputStyle: React.CSSProperties = {
@@ -528,24 +564,54 @@ export default function SalesClosingPage() {
               </div>
 
               <div style={{ marginBottom: "1.25rem" }}>
-                <label style={labelStyle}>Select Cashier (for tips only)</label>
-                <select
-                  value={selectedCashier}
-                  onChange={(e) => {
-                    setSelectedCashier(e.target.value);
-                    setSubmitMsg(null);
+                <label style={labelStyle}>
+                  Select Cashier(s) for tips — max 2
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginTop: 6,
                   }}
-                  style={inputStyle}
                 >
-                  <option value="">— Select cashier —</option>
-                  {cashiers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                  {cashiers.map((c) => {
+                    const checked = selectedCashiers.includes(c.id);
+                    const disabled = !checked && selectedCashiers.length >= 2;
+                    return (
+                      <label
+                        key={c.id}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "8px 14px",
+                          borderRadius: 10,
+                          border: checked
+                            ? "2px solid #0ea5e9"
+                            : "1px solid #e2e8f0",
+                          background: checked ? "#f0f9ff" : "#fff",
+                          cursor: disabled ? "not-allowed" : "pointer",
+                          opacity: disabled ? 0.5 : 1,
+                          fontSize: 14,
+                          fontWeight: checked ? 700 : 500,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={disabled}
+                          onChange={() => toggleCashier(c.id)}
+                          style={{ width: 16, height: 16 }}
+                        />
+                        {c.name}
+                      </label>
+                    );
+                  })}
+                </div>
                 <p style={{ fontSize: 13, color: "#64748b", margin: "6px 0 0" }}>
-                  Cashier selection only counts tips from that cashier. {sectionMeta.label} total uses all cashiers.
+                  Tips are summed from the selected cashier(s). You can pick up to two.
+                  {sectionMeta.label} MB total uses all cashiers.
                 </p>
                 {cashiers.length === 0 && (
                   <p style={{ fontSize: 13, color: "#94a3b8", margin: "6px 0 0" }}>
@@ -554,7 +620,7 @@ export default function SalesClosingPage() {
                 )}
               </div>
 
-              {selectedCashier && (
+              {selectedCashiers.length > 0 && (
                 <div
                   style={{
                     display: "grid",
@@ -572,13 +638,13 @@ export default function SalesClosingPage() {
                     }}
                   >
                     <div style={{ ...labelStyle, marginBottom: 4 }}>
-                      Total {sectionMeta.label} (all cashiers)
+                      All MB / Total {sectionMeta.label}
                     </div>
                     <div style={{ fontWeight: 800, fontSize: "1.35rem", color: "#0369a1" }}>
-                      {fmt(departmentTotal)} ETB
+                      {fmt(allMbTotal)} ETB
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                      Used in balance — not filtered by cashier
+                      All cashiers · used in balance
                     </div>
                   </div>
                   <div
@@ -590,13 +656,13 @@ export default function SalesClosingPage() {
                     }}
                   >
                     <div style={{ ...labelStyle, marginBottom: 4 }}>
-                      Tips (selected cashier)
+                      Tips (selected cashier{selectedCashiers.length > 1 ? "s" : ""})
                     </div>
                     <div style={{ fontWeight: 800, fontSize: "1.35rem", color: "#a16207" }}>
                       {fmt(cashierTipTotal)} ETB
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                      Only tips from {selectedCashierName || "this cashier"} today
+                      {selectedCashierName || "selected"}
                     </div>
                   </div>
                 </div>
@@ -782,6 +848,26 @@ export default function SalesClosingPage() {
               </div>
 
               <div style={{ marginBottom: "1.25rem" }}>
+                <label style={labelStyle}>Cash Amount</label>
+                <input
+                  type="number"
+                  placeholder="Enter cash amount counted…"
+                  min="0"
+                  step="0.01"
+                  value={cashAmount}
+                  onChange={(e) => {
+                    setCashAmount(e.target.value);
+                    setSubmitMsg(null);
+                  }}
+                  style={{
+                    ...inputStyle,
+                    fontWeight: 700,
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "1.25rem" }}>
                 <label style={labelStyle}>Z Report Amount</label>
                 <input
                   type="number"
@@ -831,13 +917,17 @@ export default function SalesClosingPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>Total {sectionMeta.label} (all cashiers)</span>
-                    <strong>{fmt(departmentTotal)} ETB</strong>
+                    <span>Cash amount</span>
+                    <strong>{fmt(cashValue)} ETB</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>+ All MB (Total {sectionMeta.label})</span>
+                    <strong>{fmt(allMbTotal)} ETB</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>
-                      + Tips (selected cashier)
-                      {!selectedCashier && " — select cashier"}
+                      + Tips (selected cashier{selectedCashiers.length > 1 ? "s" : ""})
+                      {selectedCashiers.length === 0 && " — select cashier"}
                     </span>
                     <strong>{fmt(cashierTipTotal)} ETB</strong>
                   </div>
@@ -877,12 +967,12 @@ export default function SalesClosingPage() {
                   </div>
                 </div>
                 <p style={{ margin: "10px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Balance = (Total {sectionMeta.label} all cashiers + Tips of selected cashier + Unpaid) − Z Report  ·  if Z report is greater, balance is negative
+                  Balance = (Cash + All MB + Tips + Unpaid) − Z Report · if Z is greater, balance is negative
                 </p>
               </div>
 
               {/* Shortage reason — required when balance is negative */}
-              {isShortage && selectedCashier && zReport !== "" && (
+              {isShortage && selectedCashiers.length > 0 && zReport !== "" && (
                 <div
                   style={{
                     marginBottom: "1.25rem",
@@ -983,17 +1073,21 @@ export default function SalesClosingPage() {
                     {submitting ? "Submitting…" : "✓ Submit Closing"}
                   </button>
                 )}
-                {!alreadyClosedToday && !selectedCashier && (
+                {!alreadyClosedToday && selectedCashiers.length === 0 && (
                   <p style={{ margin: 0, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
-                    Select a cashier and enter Z report to submit
+                    Select at least one cashier (max 2), enter cash and Z report to submit
                   </p>
                 )}
-                {!alreadyClosedToday && selectedCashier && zReport === "" && (
+                {!alreadyClosedToday && selectedCashiers.length > 0 && (cashAmount === "" || zReport === "") && (
                   <p style={{ margin: 0, fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
-                    Enter Z report amount to submit
+                    Enter cash amount and Z report to submit
                   </p>
                 )}
-                {!alreadyClosedToday && isShortage && selectedCashier && zReport !== "" &&
+                {!alreadyClosedToday &&
+                  isShortage &&
+                  selectedCashiers.length > 0 &&
+                  cashAmount !== "" &&
+                  zReport !== "" &&
                   (!shortageReason.trim() || !responsiblePerson.trim()) && (
                   <p style={{ margin: 0, fontSize: 13, color: "#b91c1c", textAlign: "center" }}>
                     Enter shortage reason and responsible person to enable submit
