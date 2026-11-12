@@ -66,64 +66,25 @@ function friendlyError(message: string): string {
 
 export async function getAvailableProductsForSale() {
   const admin = getAdminClient()
-  // Prefer barcode + Amharic name + unit; fall back if columns not migrated
-  let data: any[] | null = null
-  let error: { message: string } | null = null
-
-  const tries = [
-    'id, sku, name, name_am, price, cost, stock_qty, is_active, category, barcode, unit',
-    'id, sku, name, name_am, price, cost, stock_qty, is_active, category, unit',
-    'id, sku, name, name_am, price, cost, stock_qty, is_active, category, barcode',
-    'id, sku, name, name_am, price, cost, stock_qty, is_active, category',
-    'id, sku, name, price, cost, stock_qty, is_active, category, barcode',
-    'id, sku, name, price, cost, stock_qty, is_active, category',
-    'id, sku, name, price, cost, stock_qty, is_active',
-  ]
-
-  // First try: in-stock only
-  for (const cols of tries) {
-    const res = await admin
-      .from('products')
-      .select(cols)
-      .gt('stock_qty', 0)
-      .order('name', { ascending: true })
-    data = res.data
-    error = res.error
-    if (!error) break
-  }
-
-  // Fallback: load all products then filter stock in JS (avoids numeric/filter quirks)
-  if (error || !data || data.length === 0) {
-    for (const cols of tries) {
-      const res = await admin
-        .from('products')
-        .select(cols)
-        .order('name', { ascending: true })
-        .limit(2000)
-      if (!res.error) {
-        data = (res.data || []).filter((row: any) => Number(row.stock_qty) > 0)
-        error = null
-        break
-      }
-      error = res.error
-    }
-  }
+  // Do not filter is_active = true only — null should still show
+  const { data, error } = await admin
+    .from('products')
+    .select('id, sku, name, price, cost, stock_qty, is_active, category')
+    .gt('stock_qty', 0)
+    .order('name', { ascending: true })
 
   if (error) throw new Error(friendlyError(error.message))
 
   return (data || [])
-    .filter((row) => row.is_active !== false && Number(row.stock_qty) > 0)
+    .filter((row) => row.is_active !== false)
     .map((row) => ({
       id: row.id as string,
       sku: (row.sku as string) || '',
       name: (row.name as string) || '',
-      name_am: (row.name_am as string) || null,
       price: Number(row.price) || 0,
       cost: row.cost != null ? Number(row.cost) : 0,
       stock_qty: Number(row.stock_qty) || 0,
       category: (row.category as string) || null,
-      barcode: (row.barcode as string) || null,
-      unit: (row.unit as string) || 'pcs',
     }))
 }
 
@@ -210,7 +171,7 @@ async function insertSaleRow(
 export async function createSale(formData: FormData) {
   try {
     const productId = String(formData.get('product_id') || '').trim()
-    let quantity = parseFloat(String(formData.get('quantity') || '0'))
+    const quantity = parseInt(String(formData.get('quantity') || '0'), 10)
     const saleTypeRaw = String(formData.get('sale_type') || 'cash')
       .trim()
       .toLowerCase()
@@ -230,13 +191,8 @@ export async function createSale(formData: FormData) {
     const reason = String(formData.get('reason') || '').trim()
 
     if (!productId) return { error: 'Please select a product' }
-    if (isNaN(quantity) || quantity <= 0) {
-      return { error: 'Quantity must be greater than 0 (e.g. 0.1 for kg)' }
-    }
-    // Round to 3 decimals to avoid float noise (supports 0.1, 5.1, 10.5 kg)
-    quantity = Number(quantity.toFixed(3))
-    if (quantity <= 0) {
-      return { error: 'Quantity must be greater than 0' }
+    if (isNaN(quantity) || quantity < 1) {
+      return { error: 'Quantity must be at least 1' }
     }
     if (isNaN(unitPriceInput) || unitPriceInput < 0) {
       return { error: 'Selling price must be 0 or greater' }
@@ -941,45 +897,4 @@ export async function getSalesChartSummary(days = 7): Promise<{
     weekRevenue,
     weekCount,
   }
-}
-
-
-/** Sales history for one product (inventory detail modal) */
-export async function getProductSalesHistory(
-  productId: string,
-  limit = 50
-): Promise<
-  {
-    id: string
-    quantity: number
-    unit_price: number
-    total_amount: number
-    sale_type: string
-    created_at: string
-    sold_by_email?: string | null
-  }[]
-> {
-  if (!productId) return []
-  const admin = getAdminClient()
-  const { data, error } = await admin
-    .from('sales')
-    .select('id, quantity, unit_price, total_amount, sale_type, created_at, sold_by_email, product_id')
-    .eq('product_id', productId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) {
-    console.warn('[getProductSalesHistory]', error.message)
-    return []
-  }
-
-  return (data || []).map((row) => ({
-    id: row.id as string,
-    quantity: Number(row.quantity) || 0,
-    unit_price: Number(row.unit_price) || 0,
-    total_amount: Number(row.total_amount) || 0,
-    sale_type: (row.sale_type as string) || 'cash',
-    created_at: (row.created_at as string) || '',
-    sold_by_email: (row.sold_by_email as string) || null,
-  }))
 }

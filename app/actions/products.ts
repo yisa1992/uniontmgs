@@ -554,8 +554,23 @@ export async function payProductCredit(
       return { error: friendlyError(updErr.message) }
     }
 
+    const productName = (product.name as string) || 'product'
+    const supplier =
+      (product.supplier_name as string) ||
+      (product.supplier_phone as string) ||
+      'supplier'
+    await logNotification({
+      type: 'debit_paid',
+      title: 'Debit (purchase) paid',
+      message: `Paid ${outstanding.toFixed(2)} for ${productName} to ${supplier}`,
+      entity_id: productId,
+      entity_name: productName,
+      actor: user.email || user.id,
+    })
+
     revalidateInventory()
     revalidatePath('/admin/sales/debit')
+    revalidatePath('/admin/notifications')
     return {
       success: true,
       message: `Purchase credit of ${outstanding.toFixed(2)} marked as paid`,

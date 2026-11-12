@@ -41,10 +41,18 @@ export function parseDateRange(sp: DateRangeParams): {
 }
 
 export function matchSaleType(
-  row: { sale_type?: string | null; payment_type?: string | null },
+  rowOrType:
+    | string
+    | null
+    | undefined
+    | { sale_type?: string | null; payment_type?: string | null },
   typeFilter: string
 ): boolean {
   if (!typeFilter || typeFilter === "all") return true
-  const t = (row.sale_type || row.payment_type || "").toLowerCase()
-  return t === typeFilter.toLowerCase()
+  const t =
+    typeof rowOrType === "string" || rowOrType == null
+      ? String(rowOrType || "").toLowerCase()
+      : (rowOrType.sale_type || rowOrType.payment_type || "").toLowerCase()
+  const f = typeFilter.toLowerCase()
+  return t === f || t.startsWith(f)
 }

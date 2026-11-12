@@ -1,9 +1,8 @@
 {
-  "name": "Union TMS",
-  "short_name": "Union TMS",
-  "description": "Union Transaction Management System",
-  "start_url": "/login",
-  "scope": "/",
+  "name": "Union Inventory",
+  "short_name": "Union Inv",
+  "description": "Shop Management System",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",

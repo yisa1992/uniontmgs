@@ -1,5 +1,9 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation'
 
-export default function Page() {
-  redirect("/login");
+/**
+ * Email login is disabled.
+ * Always send users to the Admin Terminal (Staff ID + password).
+ */
+export default function AuthLoginPage() {
+  redirect('/admin-login')
 }

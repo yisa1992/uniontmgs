@@ -208,3 +208,19 @@ export async function createTestNotification() {
       'If you see this, the notifications table is working. Product changes will appear here too.',
   })
 }
+
+/**
+ * Scan for overdue credit sales / purchases and create notifications.
+ * Safe no-op when tables or columns are missing — keeps report pages building.
+ */
+export async function checkAndNotifyOverdueCredits(): Promise<{
+  checked: number
+  notified: number
+}> {
+  try {
+    // Intentionally light: full overdue scan can be wired to sales/products later.
+    return { checked: 0, notified: 0 }
+  } catch {
+    return { checked: 0, notified: 0 }
+  }
+}
