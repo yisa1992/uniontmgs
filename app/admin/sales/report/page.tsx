@@ -67,7 +67,7 @@ export default async function AdminGeneralReportPage({
     } else {
       sales = await getSalesReport({ limit: 5000, from, to })
       if (typeFilter !== 'all') {
-        sales = sales.filter((s) => matchSaleType(s.sale_type, typeFilter))
+        sales = sales.filter((s) => matchSaleType(s, typeFilter))
       }
       if (productQ) {
         sales = sales.filter(
@@ -266,7 +266,50 @@ export default async function AdminGeneralReportPage({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 overflow-x-auto max-w-full -mx-2 sm:mx-0">
+          {/* Mobile-friendly cards */}
+          <div className="md:hidden space-y-2">
+            {sales.map((s) => (
+              <div
+                key={s.id}
+                className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-2"
+              >
+                <div className="flex justify-between gap-2 items-start">
+                  <div className="min-w-0">
+                    <p className="text-white font-medium text-sm truncate">{s.product_name}</p>
+                    <p className="text-xs text-slate-500">{s.product_sku}</p>
+                  </div>
+                  <p className="text-emerald-400 font-semibold tabular-nums text-sm shrink-0">
+                    {formatMoney(s.total_amount)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+                  <span>{formatDate(s.created_at)}</span>
+                  <span>Qty {s.quantity}</span>
+                  <span>@ {formatMoney(s.unit_price)}</span>
+                  <span>{s.sale_type || 'cash'}</span>
+                </div>
+                <div className="flex justify-between items-center gap-2 pt-1">
+                  <span className="text-xs text-slate-500 truncate">
+                    {s.sold_by_email || s.sold_by || '—'}
+                  </span>
+                  <ReturnSaleButton
+                    saleId={s.id}
+                    productName={s.product_name}
+                    quantity={s.quantity}
+                  />
+                </div>
+              </div>
+            ))}
+            {sales.length === 0 && !error && (
+              <p className="text-center text-slate-500 py-8 text-sm">
+                {hasRange
+                  ? 'No sales for this date range and filters.'
+                  : 'Choose a date range above and click Generate report.'}
+              </p>
+            )}
+          </div>
+
+          <div className="hidden md:block rounded-xl border border-slate-800 overflow-x-auto max-w-full -mx-2 sm:mx-0">
             <table className="w-full text-sm min-w-[640px] md:min-w-0">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr>
@@ -355,48 +398,5 @@ export default async function AdminGeneralReportPage({
       )}
     </div>
   )
-
-          {/* Mobile-friendly cards */}
-          <div className="md:hidden space-y-2">
-            {sales.map((s) => (
-              <div
-                key={s.id}
-                className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-2"
-              >
-                <div className="flex justify-between gap-2 items-start">
-                  <div className="min-w-0">
-                    <p className="text-white font-medium text-sm truncate">{s.product_name}</p>
-                    <p className="text-xs text-slate-500">{s.product_sku}</p>
-                  </div>
-                  <p className="text-emerald-400 font-semibold tabular-nums text-sm shrink-0">
-                    {formatMoney(s.total_amount)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
-                  <span>{formatDate(s.created_at)}</span>
-                  <span>Qty {s.quantity}</span>
-                  <span>@ {formatMoney(s.unit_price)}</span>
-                  <span>{s.sale_type || 'cash'}</span>
-                </div>
-                <div className="flex justify-between items-center gap-2 pt-1">
-                  <span className="text-xs text-slate-500 truncate">
-                    {s.sold_by_email || s.sold_by || '—'}
-                  </span>
-                  <ReturnSaleButton
-                    saleId={s.id}
-                    productName={s.product_name}
-                    quantity={s.quantity}
-                  />
-                </div>
-              </div>
-            ))}
-            {sales.length === 0 && !error && (
-              <p className="text-center text-slate-500 py-8 text-sm">
-                {hasRange
-                  ? 'No sales for this date range and filters.'
-                  : 'Choose a date range above and click Generate report.'}
-              </p>
-            )}
-          </div>
-
 }
+
