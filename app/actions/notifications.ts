@@ -10,6 +10,9 @@ export type NotificationType =
   | 'stock_adjusted'
   | 'price_updated'
   | 'other'
+  | 'debit_paid'
+  | 'sale_returned'
+  | 'credit_paid'
 
 export interface AppNotification {
   id: string
