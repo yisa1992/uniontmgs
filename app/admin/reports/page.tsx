@@ -45,11 +45,26 @@ const footerCell: CSSProperties = {
   borderTop: "2px solid #0f766e",
 };
 
+function todayYMD() {
+  // Business calendar day in East Africa Time
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Addis_Ababa",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
 export default function AdminReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Default to current day report when the page opens
+  const [from, setFrom] = useState(todayYMD);
+  const [to, setTo] = useState(todayYMD);
   const [search, setSearch] = useState("");
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");
@@ -161,8 +176,16 @@ export default function AdminReportsPage() {
 
   let filtered = transactions.filter((t) => {
     const extra = t as TxExtra;
-    if (waiterFilter && (extra.waiterName || "") !== waiterFilter) return false;
-    if (cashierFilter && t.cashierName !== cashierFilter) return false;
+    if (
+      waiterFilter &&
+      (extra.waiterName || "").trim().toLowerCase() !== waiterFilter.trim().toLowerCase()
+    )
+      return false;
+    if (
+      cashierFilter &&
+      (t.cashierName || "").trim().toLowerCase() !== cashierFilter.trim().toLowerCase()
+    )
+      return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -423,6 +446,25 @@ export default function AdminReportsPage() {
             style={{ ...inputStyle, width: "100%" }}
           />
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const d = todayYMD();
+            setFrom(d);
+            setTo(d);
+          }}
+          style={{
+            padding: "10px 18px",
+            background: "#fff",
+            color: "#0f766e",
+            border: "1px solid #0f766e",
+            borderRadius: 8,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Today
+        </button>
         <button
           type="button"
           onClick={load}

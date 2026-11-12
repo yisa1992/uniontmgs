@@ -1,152 +1,131 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from 'react'
+import { loginSalesStaff } from '@/app/actions/auth'
+import Link from 'next/link'
+import LanguageToggle, { useLanguage } from '@/app/components/LanguageToggle'
+import { t } from '@/app/lib/i18n'
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+export default function SalesLoginPage() {
+  const lang = useLanguage()
+  const [staffId, setStaffId] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        setLoading(false);
-        return;
+  // Auto-format input to EMP-XXXX format
+  const handleStaffIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+    if (val.length > 0 && !val.startsWith('EMP-')) {
+      if (val.startsWith('EMP')) {
+        val = 'EMP-' + val.slice(3)
+      } else {
+        val = 'EMP-' + val.replace(/-/g, '')
       }
-      const role = data.user.role;
-      // One login for everyone — admin goes straight to dashboard
-      if (role === "admin") router.push("/admin");
-      else if (role === "auditor") router.push("/auditor");
-      else router.push("/cashier");
-      router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
-      setLoading(false);
+    }
+    setStaffId(val)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setErrorMsg(null)
+
+    const formData = new FormData()
+    formData.append('staffId', staffId)
+    formData.append('password', password)
+
+    const result = await loginSalesStaff(formData)
+    if (result?.error) {
+      setErrorMsg(result.error)
+      setLoading(false)
     }
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #14b8a6 100%)",
-        padding: "1.5rem",
-      }}
-    >
-      <div
-        className="card"
-        style={{ width: "100%", maxWidth: 420, padding: "2.5rem" }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 16,
-              background: "var(--primary)",
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: "0.85rem",
-              margin: "0 auto 1rem",
-              letterSpacing: "0.02em",
-            }}
-          >
-            UNION
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl p-8 space-y-6">
+        
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center p-3 bg-emerald-500/10 text-emerald-400 rounded-xl mb-2">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 11h14l1 12H4L5 11z" />
+            </svg>
           </div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>
-            Union TMS
-          </h1>
-          <p
-            style={{
-              margin: "0.4rem 0 0",
-              color: "var(--muted)",
-              fontSize: "0.9rem",
-            }}
-          >
-            Transaction Management System
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Sales Terminal Login</h1>
+          <p className="text-sm text-slate-400">Union Inventory & Shop Management</p>
         </div>
 
-        {error && (
-          <div className="alert alert-error" style={{ marginBottom: "1.25rem" }}>
-            {error}
+        {/* Error Notification */}
+        {errorMsg && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-lg flex items-center gap-2">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label">Username</label>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Staff ID / Employee Code
+            </label>
             <input
-              className="input"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
               required
-              autoFocus
+              placeholder="e.g. EMP-1001"
+              value={staffId}
+              onChange={handleStaffIdChange}
+              className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition text-white placeholder-slate-600 tracking-wider uppercase"
             />
           </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label className="label">Password</label>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              required
-            />
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Terminal PIN / Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition text-white placeholder-slate-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs px-2 py-1 rounded"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
+
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{ width: "100%", padding: "0.75rem" }}
             disabled={loading}
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-900/20 transition duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? "Signing in…" : "Sign In"}
+            {loading ? (
+              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+              'Access Sales Terminal'
+            )}
           </button>
         </form>
 
-        <div
-          style={{
-            marginTop: "1.75rem",
-            padding: "1rem",
-            background: "#f8fafc",
-            borderRadius: 8,
-            fontSize: "0.8rem",
-            color: "var(--muted)",
-          }}
-        >
-          <strong style={{ color: "var(--foreground)" }}>Demo accounts:</strong>
-          <div style={{ marginTop: "0.5rem", lineHeight: 1.7 }}>
-            Admin: <code>admin</code> / <code>admin123</code>
-            <br />
-            Auditor: <code>auditor</code> / <code>auditor123</code>
-            <br />
-            Cashier: <code>cashier</code> / <code>cashier123</code>
-          </div>
+        {/* Footer info */}
+        <div className="pt-4 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2">
+          <div>Terminal Status: <span className="text-emerald-400 font-medium">Online (POS-01)</span></div>
+          <Link href="/" className="text-slate-400 hover:text-white">← Back to Home</Link>
         </div>
       </div>
     </div>
-  );
+  )
 }
