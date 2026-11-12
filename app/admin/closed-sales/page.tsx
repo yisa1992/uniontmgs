@@ -18,10 +18,21 @@ type ClosedSaleRecord = {
   unpaidRows: UnpaidRow[];
   zReport: number;
   balance: number;
+  cashAmount?: number;
+  costsTotal?: number;
   closedAt: string;
   closedBy?: string;
   shortageReason?: string;
   responsiblePerson?: string;
+};
+
+type CostLine = {
+  id: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  total: number;
+  cashierName?: string;
 };
 
 type EditForm = {
@@ -59,9 +70,31 @@ export default function AdminClosedSalesPage() {
   const [loading, setLoading] = useState(true);
   const [reportDate, setReportDate] = useState(todayISO());
   const [unpaidDetail, setUnpaidDetail] = useState<ClosedSaleRecord | null>(null);
+  const [detail, setDetail] = useState<ClosedSaleRecord | null>(null);
+  const [detailCosts, setDetailCosts] = useState<CostLine[]>([]);
+  const [detailCostsLoading, setDetailCostsLoading] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [editMsg, setEditMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  async function openDetail(r: ClosedSaleRecord) {
+    setDetail(r);
+    setDetailCosts([]);
+    setDetailCostsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/costs?date=${encodeURIComponent(r.date || reportDate)}`
+      );
+      if (res.ok) {
+        const d = await res.json();
+        setDetailCosts(d.costs || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDetailCostsLoading(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,9 +124,11 @@ export default function AdminClosedSalesPage() {
         tips: acc.tips + (r.cashierTipTotal || 0),
         unpaid: acc.unpaid + (r.unpaidSum || 0),
         z: acc.z + (r.zReport || 0),
+        cash: acc.cash + (r.cashAmount || 0),
+        costs: acc.costs + (r.costsTotal || 0),
         balance: acc.balance + (r.balance || 0),
       }),
-      { dept: 0, tips: 0, unpaid: 0, z: 0, balance: 0 }
+      { dept: 0, tips: 0, unpaid: 0, z: 0, cash: 0, costs: 0, balance: 0 }
     );
   }, [records]);
 
@@ -301,7 +336,9 @@ export default function AdminClosedSalesPage() {
             }}
           >
             {[
-              { label: "Dept total", value: fmt(totals.dept) },
+              { label: "MB / Dept total", value: fmt(totals.dept) },
+              { label: "Cash", value: fmt(totals.cash) },
+              { label: "Costs", value: fmt(totals.costs) },
               { label: "Tips", value: fmt(totals.tips) },
               { label: "Unpaid", value: fmt(totals.unpaid) },
               { label: "Z Report", value: fmt(totals.z) },
@@ -341,13 +378,14 @@ export default function AdminClosedSalesPage() {
                     {[
                       "Department",
                       "Cashier",
-                      "Dept total",
+                      "MB total",
+                      "Cash",
+                      "Costs",
                       "Tips",
                       "Unpaid",
                       "Z Report",
                       "Balance",
-                      "Shortage reason",
-                      "Responsible",
+                      "Shortage",
                       "Closed at",
                       "Actions",
                     ].map((h) => (
@@ -370,7 +408,19 @@ export default function AdminClosedSalesPage() {
                 </thead>
                 <tbody>
                   {records.map((r) => (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      onClick={() => openDetail(r)}
+                      style={{ cursor: "pointer" }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLTableRowElement).style.background =
+                          "#f0fdfa";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLTableRowElement).style.background =
+                          "transparent";
+                      }}
+                    >
                       <td
                         style={{
                           padding: "12px 10px",
@@ -387,13 +437,22 @@ export default function AdminClosedSalesPage() {
                         {fmt(r.departmentTotal)}
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
+                        {fmt(r.cashAmount || 0)}
+                      </td>
+                      <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
+                        {fmt(r.costsTotal || 0)}
+                      </td>
+                      <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         {fmt(r.cashierTipTotal)}
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         {r.unpaidSum > 0 || (r.unpaidRows && r.unpaidRows.length > 0) ? (
                           <button
                             type="button"
-                            onClick={() => setUnpaidDetail(r)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUnpaidDetail(r);
+                            }}
                             title="View unpaid bill details"
                             style={{
                               background: "none",
@@ -438,18 +497,12 @@ export default function AdminClosedSalesPage() {
                           borderBottom: "1px solid #e2e8f0",
                           fontSize: 12,
                           maxWidth: 140,
+                          color: r.balance < 0 ? "#dc2626" : "#64748b",
                         }}
                       >
-                        {r.shortageReason || "—"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "12px 10px",
-                          borderBottom: "1px solid #e2e8f0",
-                          fontSize: 12,
-                        }}
-                      >
-                        {r.responsiblePerson || "—"}
+                        {r.balance < 0
+                          ? r.shortageReason || "Shortage"
+                          : "—"}
                       </td>
                       <td
                         style={{
@@ -465,7 +518,10 @@ export default function AdminClosedSalesPage() {
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         <button
                           type="button"
-                          onClick={() => openEdit(r)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(r);
+                          }}
                           style={{
                             background: "#eff6ff",
                             border: "1px solid #bfdbfe",
@@ -488,6 +544,217 @@ export default function AdminClosedSalesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Full closing detail modal */}
+      {detail && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.55)",
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.5rem",
+            overflowY: "auto",
+          }}
+          onClick={() => setDetail(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              maxWidth: 720,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "1.5rem",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: "1rem",
+                gap: 12,
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800 }}>
+                  Closing detail — {detail.departmentLabel}
+                </h2>
+                <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>
+                  Date <strong>{detail.date}</strong> · Cashier{" "}
+                  <strong>{detail.cashierName}</strong>
+                  {detail.closedBy ? ` · Closed by ${detail.closedBy}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                style={{
+                  border: "none",
+                  background: "#f1f5f9",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: 10,
+                marginBottom: "1.25rem",
+              }}
+            >
+              {[
+                { label: "Cash", value: fmt(detail.cashAmount || 0) },
+                { label: "MB (mobile transfer)", value: fmt(detail.departmentTotal) },
+                { label: "Tips", value: fmt(detail.cashierTipTotal) },
+                { label: "Unpaid", value: fmt(detail.unpaidSum) },
+                { label: "Costs", value: fmt(detail.costsTotal || 0) },
+                { label: "Z Report", value: fmt(detail.zReport) },
+                {
+                  label: "Balance",
+                  value: fmt(detail.balance),
+                  color:
+                    detail.balance === 0
+                      ? "#059669"
+                      : detail.balance > 0
+                        ? "#0369a1"
+                        : "#dc2626",
+                },
+              ].map((c) => (
+                <div
+                  key={c.label}
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    padding: "12px",
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                    {c.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 800,
+                      marginTop: 4,
+                      color: c.color || "#0f172a",
+                    }}
+                  >
+                    {c.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {detail.balance < 0 && (
+              <div
+                style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: "1rem",
+                }}
+              >
+                <div style={{ fontWeight: 800, color: "#991b1b", marginBottom: 4 }}>
+                  Shortage
+                </div>
+                <div style={{ fontSize: 13, color: "#7f1d1d" }}>
+                  Reason: <strong>{detail.shortageReason || "—"}</strong>
+                  <br />
+                  Responsible: <strong>{detail.responsiblePerson || "—"}</strong>
+                </div>
+              </div>
+            )}
+
+            <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Unpaid detail</h3>
+            {detail.unpaidRows && detail.unpaidRows.length > 0 ? (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                  marginBottom: "1.25rem",
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#fef2f2", textAlign: "left" }}>
+                    <th style={{ padding: "8px" }}>Name</th>
+                    <th style={{ padding: "8px" }}>Phone</th>
+                    <th style={{ padding: "8px" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.unpaidRows.map((u, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #fee2e2" }}>
+                      <td style={{ padding: "8px" }}>{u.name || "—"}</td>
+                      <td style={{ padding: "8px" }}>{u.phone || "—"}</td>
+                      <td style={{ padding: "8px", fontWeight: 700 }}>
+                        {fmt(u.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: "1.25rem" }}>
+                No unpaid rows for this closing.
+              </p>
+            )}
+
+            <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Costs detail (same day)</h3>
+            {detailCostsLoading ? (
+              <p style={{ color: "#64748b", fontSize: 13 }}>Loading costs…</p>
+            ) : detailCosts.length === 0 ? (
+              <p style={{ color: "#94a3b8", fontSize: 13 }}>No costs recorded for this date.</p>
+            ) : (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#fef3c7", textAlign: "left" }}>
+                    <th style={{ padding: "8px" }}>Item</th>
+                    <th style={{ padding: "8px" }}>Unit</th>
+                    <th style={{ padding: "8px" }}>Qty</th>
+                    <th style={{ padding: "8px" }}>Total</th>
+                    <th style={{ padding: "8px" }}>Cashier</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailCosts.map((c) => (
+                    <tr key={c.id} style={{ borderBottom: "1px solid #fde68a" }}>
+                      <td style={{ padding: "8px", fontWeight: 600 }}>{c.name}</td>
+                      <td style={{ padding: "8px" }}>{fmt(c.unitPrice)}</td>
+                      <td style={{ padding: "8px" }}>{c.quantity}</td>
+                      <td style={{ padding: "8px", fontWeight: 700 }}>{fmt(c.total)}</td>
+                      <td style={{ padding: "8px" }}>{c.cashierName || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Unpaid detail modal */}

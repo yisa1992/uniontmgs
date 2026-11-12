@@ -54,6 +54,8 @@ export type ClosedSaleRecord = {
   unpaidRows: { name: string; amount: number; phone: string }[];
   zReport: number;
   balance: number;
+  cashAmount?: number;
+  costsTotal?: number;
   closedAt: string;
   closedBy?: string;
   shortageReason?: string;
@@ -99,6 +101,8 @@ function rowToRecord(row: Record<string, unknown>): ClosedSaleRecord {
       : [],
     zReport: Number(row.z_report) || 0,
     balance: Number(row.balance) || 0,
+    cashAmount: Number(row.cash_amount) || 0,
+    costsTotal: Number(row.costs_total) || 0,
     closedAt: row.closed_at ? new Date(String(row.closed_at)).toISOString() : "",
     closedBy: row.closed_by != null ? String(row.closed_by) : undefined,
     shortageReason:
@@ -188,6 +192,8 @@ export async function POST(req: NextRequest) {
       unpaidRows,
       zReport,
       balance,
+      cashAmount,
+      costsTotal,
       shortageReason,
       responsiblePerson,
     } = body;
@@ -256,7 +262,7 @@ export async function POST(req: NextRequest) {
     const closedAt = new Date().toISOString();
     const closedBy = session?.fullName || session?.username || "";
 
-    const insertPayload = {
+    const insertPayload: Record<string, unknown> = {
       id,
       date: String(date),
       department,
@@ -270,6 +276,8 @@ export async function POST(req: NextRequest) {
       unpaid_rows: Array.isArray(unpaidRows) ? unpaidRows : [],
       z_report: Number(zReport) || 0,
       balance: Number(balance) || 0,
+      cash_amount: Number(cashAmount) || 0,
+      costs_total: Number(costsTotal) || 0,
       closed_at: closedAt,
       closed_by: closedBy,
       shortage_reason:
@@ -282,11 +290,28 @@ export async function POST(req: NextRequest) {
           : null,
     };
 
-    const { data: inserted, error: insertErr } = await admin
+    let { data: inserted, error: insertErr } = await admin
       .from("closed_sales")
       .insert(insertPayload)
       .select()
       .single();
+
+    // Fallback if cash_amount / costs_total columns not migrated yet
+    if (
+      insertErr &&
+      /cash_amount|costs_total|column/i.test(insertErr.message)
+    ) {
+      const fallback = { ...insertPayload };
+      delete fallback.cash_amount;
+      delete fallback.costs_total;
+      const retry = await admin
+        .from("closed_sales")
+        .insert(fallback)
+        .select()
+        .single();
+      inserted = retry.data;
+      insertErr = retry.error;
+    }
 
     if (insertErr) {
       console.error("[closed-sales] insert error:", insertErr.message);

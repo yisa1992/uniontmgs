@@ -19,17 +19,31 @@ export async function GET(req: NextRequest) {
   const ft = searchParams.get("ft");
   if (ft) {
     const existing = await getTransactionByFt(ft);
+    // FT lookup only needs existence + light fields (not full image payload)
+    if (existing && (existing as { imageData?: string }).imageData) {
+      const light = { ...(existing as object) } as Record<string, unknown>;
+      delete light.imageData;
+      return NextResponse.json({ exists: true, transaction: light });
+    }
     return NextResponse.json({
       exists: !!existing,
       transaction: existing || null,
     });
   }
+
+  // Single-transaction detail (includes image when requested)
+  const byId = searchParams.get("id");
+  const includeImage =
+    searchParams.get("includeImage") === "1" ||
+    searchParams.get("includeImage") === "true";
+
   let txs = await getTransactions();
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const cashierId = searchParams.get("cashierId");
   const cashierName = searchParams.get("cashierName");
-  const todayOnly = searchParams.get("today") === "1" || searchParams.get("today") === "true";
+  const todayOnly =
+    searchParams.get("today") === "1" || searchParams.get("today") === "true";
 
   // Business day in East Africa Time (Africa/Addis_Ababa, UTC+3)
   const bizDay = (d: Date = new Date()) => {
@@ -45,49 +59,47 @@ export async function GET(req: NextRequest) {
     return `${y}-${m}-${day}`;
   };
 
-  if (todayOnly) {
-    const start = bizDay();
-    // Match any createdAt that falls on this calendar day in EAT.
-    // createdAt is usually ISO (…Z). Convert each to EAT calendar date for comparison.
+  // Default to today when no range given — avoids loading entire history
+  const effectiveFrom = from || (todayOnly || (!from && !to) ? bizDay() : null);
+  const effectiveTo = to || (todayOnly || (!from && !to) ? bizDay() : null);
+
+  if (effectiveFrom || effectiveTo) {
     txs = txs.filter((t) => {
       if (!t.createdAt) return false;
       try {
-        return bizDay(new Date(t.createdAt)) === start;
+        const day = bizDay(new Date(t.createdAt));
+        if (effectiveFrom && day < effectiveFrom) return false;
+        if (effectiveTo && day > effectiveTo) return false;
+        return true;
       } catch {
-        // Fallback string compare for plain YYYY-MM-DD or local ISO without Z
-        return String(t.createdAt) >= start && String(t.createdAt) <= start + "T23:59:59.999";
+        const s = String(t.createdAt);
+        if (effectiveFrom && s < effectiveFrom) return false;
+        if (effectiveTo && s > effectiveTo + "T23:59:59.999") return false;
+        return true;
       }
     });
-  } else {
-    if (from) {
-      txs = txs.filter((t) => {
-        if (!t.createdAt) return false;
-        try {
-          return bizDay(new Date(t.createdAt)) >= from;
-        } catch {
-          return String(t.createdAt) >= from;
-        }
-      });
-    }
-    if (to) {
-      txs = txs.filter((t) => {
-        if (!t.createdAt) return false;
-        try {
-          return bizDay(new Date(t.createdAt)) <= to;
-        } catch {
-          return String(t.createdAt) <= to + "T23:59:59.999";
-        }
-      });
-    }
   }
 
+  if (byId) {
+    txs = txs.filter((t) => String((t as { id?: string }).id) === byId);
+  }
   if (cashierId) txs = txs.filter((t) => t.cashierId === cashierId);
   if (cashierName) {
     const q = cashierName.toLowerCase();
     txs = txs.filter((t) => (t.cashierName || "").toLowerCase() === q);
   }
 
-  return NextResponse.json({ transactions: txs });
+  // Strip heavy image payloads from list responses (huge speed win)
+  const payload = !includeImage
+    ? txs.map((t) => {
+        if (!(t as { imageData?: string }).imageData) return t;
+        const light = { ...(t as object) } as Record<string, unknown>;
+        delete light.imageData;
+        return light;
+      })
+    : txs;
+
+  return NextResponse.json({ transactions: payload });
 }
 
 export async function POST(req: NextRequest) {

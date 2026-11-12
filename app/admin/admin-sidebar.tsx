@@ -41,6 +41,18 @@ const navItems: {
       { href: '/admin/sales/debit', labelKey: 'debit' },
       { href: '/admin/sales/transactions', labelKey: 'transactionReport' },
       { href: '/admin/sales/graphics', labelKey: 'graphicReport' },
+      { href: '/admin/closed-sales', labelKey: 'closedSalesReport' },
+    ],
+  },
+  {
+    href: '/admin/costs',
+    labelKey: 'costsReport',
+    icon: '🧾',
+    children: [
+      { href: '/admin/costs?mode=daily', labelKey: 'dailyCosts' },
+      { href: '/admin/costs?mode=weekly', labelKey: 'weeklyCosts' },
+      { href: '/admin/costs?mode=monthly', labelKey: 'monthlyCosts' },
+      { href: '/admin/costs?mode=range', labelKey: 'costsByRange' },
     ],
   },
 ]
