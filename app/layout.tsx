@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import PwaRegister from "./components/pwa-register";
-import SplashScreenAlways from "./components/SplashScreenAlways";
+import SplashScreen from "./components/SplashScreen";
 
 export const metadata: Metadata = {
   title: "Union TMS",
@@ -38,10 +38,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SplashScreenAlways>
+        <SplashScreen>
           {children}
           <PwaRegister />
-        </SplashScreenAlways>
+        </SplashScreen>
       </body>
     </html>
   );

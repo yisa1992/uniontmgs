@@ -8,7 +8,8 @@ import { createToken, setSessionCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    await seedIfEmpty();
+    // Seed in background so login is not delayed
+    void seedIfEmpty().catch(() => {});
     const { username, password } = await req.json();
     if (!username || !password) {
       return NextResponse.json(

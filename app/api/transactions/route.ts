@@ -30,6 +30,12 @@ export async function GET(req: NextRequest) {
   const cashierId = searchParams.get("cashierId");
   const cashierName = searchParams.get("cashierName");
   const todayOnly = searchParams.get("today") === "1" || searchParams.get("today") === "true";
+  // Safety limit: prevent unbounded payloads (override with ?limit=N)
+  const limitParam = searchParams.get("limit");
+  const limit = Math.min(
+    Math.max(1, limitParam ? parseInt(limitParam, 10) || 2000 : 2000),
+    10000
+  );
 
   // Business day in East Africa Time (Africa/Addis_Ababa, UTC+3)
   const bizDay = (d: Date = new Date()) => {
@@ -85,6 +91,15 @@ export async function GET(req: NextRequest) {
   if (cashierName) {
     const q = cashierName.toLowerCase();
     txs = txs.filter((t) => (t.cashierName || "").toLowerCase() === q);
+  }
+
+  // Cap response size (newest first if createdAt present)
+  if (txs.length > limit) {
+    txs = [...txs].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    }).slice(0, limit);
   }
 
   return NextResponse.json({ transactions: txs });

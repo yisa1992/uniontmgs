@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth";
 import { seedIfEmpty } from "@/lib/db";
 
 export default async function Home() {
-  seedIfEmpty();
+  // Do not block redirect on seeding — run in background
+  void seedIfEmpty().catch(() => {});
   const session = await getSession();
   if (!session) {
     redirect("/login");

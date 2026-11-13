@@ -48,8 +48,15 @@ const footerCell: CSSProperties = {
 export default function AdminReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Default to last 7 days (EAT calendar) so empty range no longer loads entire history
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" });
+  });
+  const [to, setTo] = useState(() =>
+    new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
+  );
   const [search, setSearch] = useState("");
   const [waiterFilter, setWaiterFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState("");

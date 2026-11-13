@@ -13,7 +13,8 @@ export default function AuditorReportsPage() {
     try {
       const [nRes, tRes] = await Promise.all([
         fetch("/api/notifications"),
-        fetch("/api/transactions"),
+        // Only today's transactions — much lighter than full history
+        fetch("/api/transactions?today=1"),
       ]);
       if (nRes.ok) {
         const d = await nRes.json();
@@ -34,9 +35,9 @@ export default function AuditorReportsPage() {
     load();
   }, [load]);
 
-  // Poll for new notifications every 8s
+  // Poll for new notifications every 30s
   useEffect(() => {
-    const id = setInterval(load, 8000);
+    const id = setInterval(load, 30000);
     return () => clearInterval(id);
   }, [load]);
 
