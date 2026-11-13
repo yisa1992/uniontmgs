@@ -26,6 +26,7 @@ export default function CashierPage() {
   const [restaurant, setRestaurant] = useState("");
   const [cafe, setCafe] = useState("");
   const [butchery, setButchery] = useState("");
+  const [online, setOnline] = useState("");
   const [tip, setTip] = useState("");
   const [senderName, setSenderName] = useState("");
   const [receiverName, setReceiverName] = useState("");
@@ -179,13 +180,14 @@ export default function CashierPage() {
     const r = parseFloat(restaurant) || 0;
     const c = parseFloat(cafe) || 0;
     const b = parseFloat(butchery) || 0;
-    const computed = Math.round((total - r - c - b) * 100) / 100;
+    const o = parseFloat(online) || 0;
+    const computed = Math.round((total - r - c - b - o) * 100) / 100;
     setTip(computed >= 0 ? String(computed) : "0");
-  }, [totalAmount, restaurant, cafe, butchery]);
+  }, [totalAmount, restaurant, cafe, butchery, online]);
 
   useEffect(() => {
     if (totalAmount) autoTip();
-  }, [totalAmount, restaurant, cafe, butchery, autoTip]);
+  }, [totalAmount, restaurant, cafe, butchery, online, autoTip]);
 
   useEffect(() => {
     if (!ftNumber || ftNumber.length < 3) {
@@ -681,14 +683,15 @@ export default function CashierPage() {
     const r = parseFloat(restaurant) || 0;
     const c = parseFloat(cafe) || 0;
     const b = parseFloat(butchery) || 0;
+    const o = parseFloat(online) || 0;
     const t = parseFloat(tip) || 0;
     if (total <= 0) {
       setError("Total amount is required");
       return;
     }
-    if (Math.abs(r + c + b + t - total) > 0.01) {
+    if (Math.abs(r + c + b + o + t - total) > 0.01) {
       setError(
-        `Sum (${(r + c + b + t).toFixed(2)}) must equal scanned amount (${total.toFixed(2)})`
+        `Sum (${(r + c + b + o + t).toFixed(2)}) must equal scanned amount (${total.toFixed(2)})`
       );
       return;
     }
@@ -716,6 +719,7 @@ export default function CashierPage() {
           restaurantAmount: r,
           cafeAmount: c,
           butcheryAmount: b,
+          onlineAmount: o,
           tip: t,
           senderName: senderName || "",
           receiverName: receiverName || "",
@@ -754,6 +758,7 @@ export default function CashierPage() {
       setRestaurant("");
       setCafe("");
       setButchery("");
+      setOnline("");
       setTip("");
       setSenderName("");
       setReceiverName("");
@@ -794,6 +799,7 @@ export default function CashierPage() {
     (parseFloat(restaurant) || 0) +
     (parseFloat(cafe) || 0) +
     (parseFloat(butchery) || 0) +
+    (parseFloat(online) || 0) +
     (parseFloat(tip) || 0);
   const total = parseFloat(totalAmount) || 0;
   const balanced = Math.abs(sum - total) < 0.01 && total > 0;
@@ -1520,6 +1526,19 @@ export default function CashierPage() {
                   min="0"
                   value={butchery}
                   onChange={(e) => setButchery(e.target.value)}
+                  placeholder="0.00"
+                  style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
+                />
+              </div>
+              <div>
+                <label className="label">Online Amount</label>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={online}
+                  onChange={(e) => setOnline(e.target.value)}
                   placeholder="0.00"
                   style={{ borderRadius: 12, padding: "0.75rem 1rem" }}
                 />

@@ -351,7 +351,15 @@ export default function SalesClosingPage() {
           })),
         zReport: zValue,
         balance,
-        // Cash is used in balance calc; stored in shortageReason prefix when needed, or omit
+        cashAmount: cashValue,
+        costsTotal,
+        costsRows: costsList.map((c) => ({
+          name: c.name,
+          unitPrice: Number(c.unitPrice) || 0,
+          quantity: Number(c.quantity) || 0,
+          total: Number(c.total) || 0,
+          cashierName: c.cashierName,
+        })),
         shortageReason: balance < 0 ? shortageReason.trim() : undefined,
         responsiblePerson: balance < 0 ? responsiblePerson.trim() : undefined,
       };

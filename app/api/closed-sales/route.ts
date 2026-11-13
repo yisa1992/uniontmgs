@@ -21,12 +21,20 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
  *   unpaid_rows jsonb not null default '[]'::jsonb,
  *   z_report numeric not null default 0,
  *   balance numeric not null default 0,
+ *   cash_amount numeric not null default 0,
+ *   costs_total numeric not null default 0,
+ *   costs_rows jsonb not null default '[]'::jsonb,
  *   closed_at timestamptz not null default now(),
  *   closed_by text,
  *   shortage_reason text,
  *   responsible_person text,
  *   created_at timestamptz not null default now()
  * );
+ *
+ * -- If table already exists, run:
+ * -- alter table public.closed_sales add column if not exists cash_amount numeric not null default 0;
+ * -- alter table public.closed_sales add column if not exists costs_total numeric not null default 0;
+ * -- alter table public.closed_sales add column if not exists costs_rows jsonb not null default '[]'::jsonb;
  *
  * create unique index if not exists closed_sales_unique_day_dept_cashier
  *   on public.closed_sales (date, department, cashier_id);
@@ -54,6 +62,9 @@ export type ClosedSaleRecord = {
   unpaidRows: { name: string; amount: number; phone: string }[];
   zReport: number;
   balance: number;
+  cashAmount: number;
+  costsTotal: number;
+  costsRows: { name: string; unitPrice: number; quantity: number; total: number; cashierName?: string }[];
   closedAt: string;
   closedBy?: string;
   shortageReason?: string;
@@ -99,6 +110,11 @@ function rowToRecord(row: Record<string, unknown>): ClosedSaleRecord {
       : [],
     zReport: Number(row.z_report) || 0,
     balance: Number(row.balance) || 0,
+    cashAmount: Number(row.cash_amount) || 0,
+    costsTotal: Number(row.costs_total) || 0,
+    costsRows: Array.isArray(row.costs_rows)
+      ? (row.costs_rows as ClosedSaleRecord["costsRows"])
+      : [],
     closedAt: row.closed_at ? new Date(String(row.closed_at)).toISOString() : "",
     closedBy: row.closed_by != null ? String(row.closed_by) : undefined,
     shortageReason:
@@ -188,6 +204,9 @@ export async function POST(req: NextRequest) {
       unpaidRows,
       zReport,
       balance,
+      cashAmount,
+      costsTotal,
+      costsRows,
       shortageReason,
       responsiblePerson,
     } = body;
@@ -270,6 +289,9 @@ export async function POST(req: NextRequest) {
       unpaid_rows: Array.isArray(unpaidRows) ? unpaidRows : [],
       z_report: Number(zReport) || 0,
       balance: Number(balance) || 0,
+      cash_amount: Number(cashAmount) || 0,
+      costs_total: Number(costsTotal) || 0,
+      costs_rows: Array.isArray(costsRows) ? costsRows : [],
       closed_at: closedAt,
       closed_by: closedBy,
       shortage_reason:
@@ -330,6 +352,9 @@ export async function PUT(req: NextRequest) {
       unpaidRows,
       zReport,
       balance,
+      cashAmount,
+      costsTotal,
+      costsRows,
       shortageReason,
       responsiblePerson,
     } = body;
@@ -363,6 +388,9 @@ export async function PUT(req: NextRequest) {
       unpaid_rows: Array.isArray(unpaidRows) ? unpaidRows : [],
       z_report: Number(zReport) || 0,
       balance: Number(balance) || 0,
+      cash_amount: cashAmount != null ? Number(cashAmount) || 0 : undefined,
+      costs_total: costsTotal != null ? Number(costsTotal) || 0 : undefined,
+      costs_rows: costsRows != null ? (Array.isArray(costsRows) ? costsRows : []) : undefined,
       shortage_reason:
         Number(balance) < 0
           ? String(shortageReason || "").trim() || null
@@ -372,6 +400,10 @@ export async function PUT(req: NextRequest) {
           ? String(responsiblePerson || "").trim() || null
           : null,
     };
+    // Remove undefined so we don't overwrite existing cash/costs when not sent
+    Object.keys(updatePayload).forEach((k) => {
+      if (updatePayload[k] === undefined) delete updatePayload[k];
+    });
 
     const { data: updated, error: updateErr } = await admin
       .from("closed_sales")

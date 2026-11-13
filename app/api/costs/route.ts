@@ -89,7 +89,7 @@ function newId() {
   );
 }
 
-/** GET /api/costs?date=YYYY-MM-DD  — cashiers see own, auditor/admin see all */
+/** GET /api/costs?date=YYYY-MM-DD or from=&to=  — cashiers see own, auditor/admin see all */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!requireRole(session, ["admin", "auditor", "cashier"])) {
@@ -98,14 +98,23 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get("date") || todayISO();
+    const date = searchParams.get("date");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
     const admin = getAdminClient();
 
     let query = admin
       .from("cashier_costs")
       .select("*")
-      .eq("date", date)
       .order("created_at", { ascending: false });
+
+    if (from && to) {
+      query = query.gte("date", from).lte("date", to);
+    } else if (date) {
+      query = query.eq("date", date);
+    } else {
+      query = query.eq("date", todayISO());
+    }
 
     // Cashiers only see their own costs
     if (session!.role === "cashier") {

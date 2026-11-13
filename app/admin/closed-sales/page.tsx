@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UnpaidRow = { name: string; amount: number; phone: string };
+type CostRow = { name: string; unitPrice: number; quantity: number; total: number; cashierName?: string };
 
 type ClosedSaleRecord = {
   id: string;
@@ -18,6 +19,9 @@ type ClosedSaleRecord = {
   unpaidRows: UnpaidRow[];
   zReport: number;
   balance: number;
+  cashAmount: number;
+  costsTotal: number;
+  costsRows: CostRow[];
   closedAt: string;
   closedBy?: string;
   shortageReason?: string;
@@ -59,6 +63,7 @@ export default function AdminClosedSalesPage() {
   const [loading, setLoading] = useState(true);
   const [reportDate, setReportDate] = useState(todayISO());
   const [unpaidDetail, setUnpaidDetail] = useState<ClosedSaleRecord | null>(null);
+  const [costsDetail, setCostsDetail] = useState<ClosedSaleRecord | null>(null);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [editMsg, setEditMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -343,6 +348,8 @@ export default function AdminClosedSalesPage() {
                       "Cashier",
                       "Dept total",
                       "Tips",
+                      "Cash",
+                      "Cost",
                       "Unpaid",
                       "Z Report",
                       "Balance",
@@ -388,6 +395,34 @@ export default function AdminClosedSalesPage() {
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         {fmt(r.cashierTipTotal)}
+                      </td>
+                      <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
+                        {fmt(r.cashAmount || 0)}
+                      </td>
+                      <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
+                        {(r.costsTotal || 0) > 0 || (r.costsRows && r.costsRows.length > 0) ? (
+                          <button
+                            type="button"
+                            onClick={() => setCostsDetail(r)}
+                            title="View cost details"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              color: "#b45309",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              textUnderlineOffset: 3,
+                            }}
+                          >
+                            {fmt(r.costsTotal || 0)}
+                          </button>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>{fmt(r.costsTotal || 0)}</span>
+                        )}
                       </td>
                       <td style={{ padding: "12px 10px", borderBottom: "1px solid #e2e8f0" }}>
                         {r.unpaidSum > 0 || (r.unpaidRows && r.unpaidRows.length > 0) ? (
@@ -616,6 +651,147 @@ export default function AdminClosedSalesPage() {
                       >
                         {fmt(unpaidDetail.unpaidSum)} ETB
                       </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {costsDetail && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.5rem",
+          }}
+          onClick={() => setCostsDetail(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              maxWidth: 640,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "1.5rem",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1rem",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.15rem" }}>
+                Cost details — {costsDetail.departmentLabel}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCostsDetail(null)}
+                style={{
+                  background: "#f1f5f9",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <p style={{ margin: "0 0 1rem", fontSize: 13, color: "#64748b" }}>
+              Cashier: <strong>{costsDetail.cashierName}</strong> · Date:{" "}
+              <strong>{costsDetail.date}</strong>
+            </p>
+            {!costsDetail.costsRows || costsDetail.costsRows.length === 0 ? (
+              <p style={{ color: "#94a3b8" }}>
+                No line items. Costs total: {fmt(costsDetail.costsTotal || 0)} ETB
+              </p>
+            ) : (
+              <div style={{ overflowX: "auto", borderRadius: 12, border: "1px solid #fcd34d" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#fffbeb" }}>
+                      {["#", "Item", "Unit price", "Qty", "Total (ETB)", "By"].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: h === "Total (ETB)" || h === "Unit price" || h === "Qty" ? "right" : "left",
+                            padding: "12px 14px",
+                            borderBottom: "2px solid #fcd34d",
+                            fontSize: 11,
+                            textTransform: "uppercase",
+                            color: "#92400e",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costsDetail.costsRows.map((c, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fffbeb" }}>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #fef3c7", color: "#94a3b8" }}>
+                          {i + 1}
+                        </td>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #fef3c7", fontWeight: 600 }}>
+                          {c.name || "—"}
+                        </td>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #fef3c7", textAlign: "right" }}>
+                          {fmt(Number(c.unitPrice) || 0)}
+                        </td>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #fef3c7", textAlign: "right" }}>
+                          {Number(c.quantity) || 0}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 14px",
+                            borderBottom: "1px solid #fef3c7",
+                            textAlign: "right",
+                            fontWeight: 700,
+                            color: "#b45309",
+                          }}
+                        >
+                          {fmt(Number(c.total) || 0)}
+                        </td>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #fef3c7", fontSize: 12 }}>
+                          {c.cashierName || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#fffbeb" }}>
+                      <td colSpan={4} style={{ padding: 14, fontWeight: 800, borderTop: "2px solid #fcd34d" }}>
+                        Total costs
+                      </td>
+                      <td
+                        style={{
+                          padding: 14,
+                          fontWeight: 900,
+                          color: "#b45309",
+                          borderTop: "2px solid #fcd34d",
+                          textAlign: "right",
+                        }}
+                      >
+                        {fmt(costsDetail.costsTotal || 0)} ETB
+                      </td>
+                      <td style={{ borderTop: "2px solid #fcd34d" }} />
                     </tr>
                   </tfoot>
                 </table>

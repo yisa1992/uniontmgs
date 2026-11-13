@@ -9,6 +9,7 @@ const navItems = [
   { href: "/admin/users", label: "Users", icon: "👥", color: "#8b5cf6" },
   { href: "/admin/reports", label: "Reports", icon: "📊", color: "#10b981" },
   { href: "/admin/closed-sales", label: "Closed Sales", icon: "🔒", color: "#f59e0b" },
+  { href: "/admin/costs", label: "Costs Report", icon: "🧾", color: "#ea580c" },
 ];
 
 export default function AdminSidebar({ staffLabel }: { staffLabel: string }) {

@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
       restaurantAmount,
       cafeAmount,
       butcheryAmount,
+      onlineAmount,
       tip,
       senderName,
       receiverName,
@@ -149,13 +150,14 @@ export async function POST(req: NextRequest) {
     const r = Number(restaurantAmount) || 0;
     const c = Number(cafeAmount) || 0;
     const b = Number(butcheryAmount) || 0;
+    const o = Number(onlineAmount) || 0;
     const t = Number(tip) || 0;
     const total = Number(totalAmount);
 
-    if (Math.abs(r + c + b + t - total) > 0.01) {
+    if (Math.abs(r + c + b + o + t - total) > 0.01) {
       return NextResponse.json(
         {
-          error: `Sum of restaurant + cafe + butchery + tip (${(r + c + b + t).toFixed(2)}) must equal scanned amount (${total.toFixed(2)})`,
+          error: `Sum of restaurant + cafe + butchery + online + tip (${(r + c + b + o + t).toFixed(2)}) must equal scanned amount (${total.toFixed(2)})`,
         },
         { status: 400 }
       );
@@ -183,6 +185,7 @@ export async function POST(req: NextRequest) {
       restaurantAmount: r,
       cafeAmount: c,
       butcheryAmount: b,
+      onlineAmount: o,
       tip: t,
       senderName: senderName || "",
       receiverName: receiverName || "",
@@ -223,6 +226,7 @@ export async function PATCH(req: NextRequest) {
       restaurantAmount,
       cafeAmount,
       butcheryAmount,
+      onlineAmount,
       tip,
       senderName,
       receiverName,
@@ -259,14 +263,15 @@ export async function PATCH(req: NextRequest) {
     const r = restaurantAmount != null ? Number(restaurantAmount) || 0 : undefined;
     const c = cafeAmount != null ? Number(cafeAmount) || 0 : undefined;
     const b = butcheryAmount != null ? Number(butcheryAmount) || 0 : undefined;
+    const o = onlineAmount != null ? Number(onlineAmount) || 0 : undefined;
     const t = tip != null ? Number(tip) || 0 : undefined;
     const total = totalAmount != null ? Number(totalAmount) : undefined;
 
-    if (r != null && c != null && b != null && t != null && total != null) {
-      if (Math.abs(r + c + b + t - total) > 0.01) {
+    if (r != null && c != null && b != null && o != null && t != null && total != null) {
+      if (Math.abs(r + c + b + o + t - total) > 0.01) {
         return NextResponse.json(
           {
-            error: `Sum of restaurant + cafe + butchery + tip (${(r + c + b + t).toFixed(2)}) must equal total (${total.toFixed(2)})`,
+            error: `Sum of restaurant + cafe + butchery + online + tip (${(r + c + b + o + t).toFixed(2)}) must equal total (${total.toFixed(2)})`,
           },
           { status: 400 }
         );
@@ -289,6 +294,7 @@ export async function PATCH(req: NextRequest) {
     if (r != null) patch.restaurantAmount = r;
     if (c != null) patch.cafeAmount = c;
     if (b != null) patch.butcheryAmount = b;
+    if (o != null) patch.onlineAmount = o;
     if (t != null) patch.tip = t;
     if (senderName != null) patch.senderName = String(senderName);
     if (receiverName != null) patch.receiverName = String(receiverName);

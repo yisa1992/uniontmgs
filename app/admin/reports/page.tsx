@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import type { Transaction } from "@/lib/types";
 
 type TxExtra = Transaction & { tableNumber?: string; waiterName?: string };
-type ReportTab = "all" | "restaurant" | "cafe" | "butchery";
+type ReportTab = "all" | "restaurant" | "cafe" | "butchery" | "online";
 
 const headerCell: CSSProperties = {
   padding: "12px 10px",
@@ -189,6 +189,8 @@ export default function AdminReportsPage() {
     filtered = filtered.filter((t) => (t.cafeAmount || 0) > 0);
   } else if (tab === "butchery") {
     filtered = filtered.filter((t) => (t.butcheryAmount || 0) > 0);
+  } else if (tab === "online") {
+    filtered = filtered.filter((t) => ((t as TxExtra & { onlineAmount?: number }).onlineAmount || 0) > 0);
   }
 
   const totals = filtered.reduce(
@@ -197,10 +199,11 @@ export default function AdminReportsPage() {
       restaurant: acc.restaurant + t.restaurantAmount,
       cafe: acc.cafe + t.cafeAmount,
       butchery: acc.butchery + t.butcheryAmount,
+      online: acc.online + ((t as TxExtra & { onlineAmount?: number }).onlineAmount || 0),
       tip: acc.tip + t.tip,
       count: acc.count + 1,
     }),
-    { total: 0, restaurant: 0, cafe: 0, butchery: 0, tip: 0, count: 0 }
+    { total: 0, restaurant: 0, cafe: 0, butchery: 0, online: 0, tip: 0, count: 0 }
   );
 
   async function handleDelete(id: string) {
@@ -218,7 +221,7 @@ export default function AdminReportsPage() {
   }
 
   const colsAll =
-    "130px 60px 100px 150px 90px 95px 80px 90px 70px 110px 90px 90px 80px";
+    "130px 60px 100px 150px 90px 95px 80px 90px 80px 70px 110px 90px 90px 80px";
   const colsCategory =
     "130px 60px 100px 150px 110px 90px 110px 90px 90px 80px";
 
@@ -229,6 +232,7 @@ export default function AdminReportsPage() {
     { id: "restaurant", label: "Restaurant only", color: "#7c3aed", emoji: "🍽️" },
     { id: "cafe", label: "Cafe only", color: "#d97706", emoji: "☕" },
     { id: "butchery", label: "Butchery only", color: "#dc2626", emoji: "🥩" },
+    { id: "online", label: "Online only", color: "#2563eb", emoji: "🌐" },
   ];
 
   if (loading && transactions.length === 0) {
@@ -329,6 +333,7 @@ export default function AdminReportsPage() {
             ["RESTAURANT", `${totals.restaurant.toLocaleString()} ETB`, "#7c3aed"],
             ["CAFE", `${totals.cafe.toLocaleString()} ETB`, "#d97706"],
             ["BUTCHERY", `${totals.butchery.toLocaleString()} ETB`, "#dc2626"],
+            ["ONLINE", `${totals.online.toLocaleString()} ETB`, "#2563eb"],
             ["TIPS", `${totals.tip.toLocaleString()} ETB`, "#0f766e"],
           ] as [string, string, string][]
         )
@@ -336,6 +341,7 @@ export default function AdminReportsPage() {
             if (tab === "restaurant") return ["TRANSACTIONS", "RESTAURANT", "TIPS"].includes(label);
             if (tab === "cafe") return ["TRANSACTIONS", "CAFE", "TIPS"].includes(label);
             if (tab === "butchery") return ["TRANSACTIONS", "BUTCHERY", "TIPS"].includes(label);
+            if (tab === "online") return ["TRANSACTIONS", "ONLINE", "TIPS"].includes(label);
             return true;
           })
           .map(([label, value, color]) => (
@@ -483,6 +489,7 @@ export default function AdminReportsPage() {
                     "Restaurant",
                     "Cafe",
                     "Butchery",
+                    "Online",
                     "Tip",
                     "Cashier",
                     "Sender",
@@ -498,7 +505,9 @@ export default function AdminReportsPage() {
                       ? "Restaurant"
                       : tab === "cafe"
                         ? "Cafe"
-                        : "Butchery",
+                        : tab === "online"
+                          ? "Online"
+                          : "Butchery",
                     "Tip",
                     "Cashier",
                     "Sender",
@@ -515,6 +524,7 @@ export default function AdminReportsPage() {
             {/* Rows */}
             {filtered.map((raw) => {
               const t = raw as TxExtra;
+              const onlineAmt = (t as TxExtra & { onlineAmount?: number }).onlineAmount || 0;
               const categoryAmount =
                 tab === "restaurant"
                   ? t.restaurantAmount
@@ -522,7 +532,9 @@ export default function AdminReportsPage() {
                     ? t.cafeAmount
                     : tab === "butchery"
                       ? t.butcheryAmount
-                      : 0;
+                      : tab === "online"
+                        ? onlineAmt
+                        : 0;
 
               return (
                 <div
@@ -561,6 +573,7 @@ export default function AdminReportsPage() {
                       <div style={cell}>{t.restaurantAmount.toLocaleString()}</div>
                       <div style={cell}>{t.cafeAmount.toLocaleString()}</div>
                       <div style={cell}>{t.butcheryAmount.toLocaleString()}</div>
+                      <div style={cell}>{onlineAmt.toLocaleString()}</div>
                       <div style={cell}>{t.tip.toLocaleString()}</div>
                     </>
                   ) : (
@@ -681,7 +694,9 @@ export default function AdminReportsPage() {
                 ? `${totals.restaurant.toLocaleString()} ETB`
                 : tab === "cafe"
                   ? `${totals.cafe.toLocaleString()} ETB`
-                  : `${totals.butchery.toLocaleString()} ETB`}
+                  : tab === "online"
+                    ? `${totals.online.toLocaleString()} ETB`
+                    : `${totals.butchery.toLocaleString()} ETB`}
           </div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", alignItems: "center" }}>
@@ -707,6 +722,12 @@ export default function AdminReportsPage() {
                 <div style={{ fontSize: 11, opacity: 0.85 }}>Butchery</div>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>
                   {totals.butchery.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>Online</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  {totals.online.toLocaleString()}
                 </div>
               </div>
             </>
@@ -765,6 +786,7 @@ export default function AdminReportsPage() {
                   ["Restaurant", `${selectedTx.restaurantAmount.toLocaleString()} ETB`],
                   ["Cafe", `${selectedTx.cafeAmount.toLocaleString()} ETB`],
                   ["Butchery", `${selectedTx.butcheryAmount.toLocaleString()} ETB`],
+                  ["Online", `${((selectedTx as TxExtra & { onlineAmount?: number }).onlineAmount || 0).toLocaleString()} ETB`],
                   ["Tip", `${selectedTx.tip.toLocaleString()} ETB`],
                   ["Cashier", selectedTx.cashierName],
                   ["Sender", selectedTx.senderName || "—"],
