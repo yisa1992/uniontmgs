@@ -18,6 +18,7 @@ export interface Transaction {
   restaurantAmount: number;
   cafeAmount: number;
   butcheryAmount: number;
+  onlineAmount: number;
   tip: number;
   senderName: string;
   receiverName: string;

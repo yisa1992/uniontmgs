@@ -24,6 +24,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     restaurantAmount: Number(row.restaurant_amount ?? 0),
     cafeAmount: Number(row.cafe_amount ?? 0),
     butcheryAmount: Number(row.butchery_amount ?? 0),
+    onlineAmount: Number(row.online_amount ?? 0),
     tip: Number(row.tip ?? 0),
     senderName: String(row.sender_name ?? ""),
     receiverName: String(row.receiver_name ?? ""),
@@ -222,6 +223,7 @@ export async function createTransaction(
     restaurant_amount: data.restaurantAmount,
     cafe_amount: data.cafeAmount,
     butchery_amount: data.butcheryAmount,
+    online_amount: data.onlineAmount ?? 0,
     tip: data.tip,
     sender_name: data.senderName || "",
     receiver_name: data.receiverName || "",
@@ -277,6 +279,7 @@ export async function updateTransaction(
     restaurantAmount: number;
     cafeAmount: number;
     butcheryAmount: number;
+    onlineAmount: number;
     tip: number;
     senderName: string;
     receiverName: string;
@@ -295,6 +298,7 @@ export async function updateTransaction(
   if (data.restaurantAmount !== undefined) patch.restaurant_amount = data.restaurantAmount;
   if (data.cafeAmount !== undefined) patch.cafe_amount = data.cafeAmount;
   if (data.butcheryAmount !== undefined) patch.butchery_amount = data.butcheryAmount;
+  if (data.onlineAmount !== undefined) patch.online_amount = data.onlineAmount;
   if (data.tip !== undefined) patch.tip = data.tip;
   if (data.senderName !== undefined) patch.sender_name = data.senderName;
   if (data.receiverName !== undefined) patch.receiver_name = data.receiverName;

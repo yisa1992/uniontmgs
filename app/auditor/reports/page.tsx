@@ -10,6 +10,7 @@ export default function AuditorReportsPage() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [nRes, tRes] = await Promise.all([
         fetch("/api/notifications"),
@@ -101,11 +102,25 @@ export default function AuditorReportsPage() {
             Live feed of every transaction submitted by cashiers
           </p>
         </div>
-        {unread > 0 && (
-          <button className="btn btn-outline" onClick={markAllRead}>
-            Mark all read
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => load()}
+            disabled={loading}
+            style={{
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
-        )}
+          {unread > 0 && (
+            <button type="button" className="btn btn-outline" onClick={markAllRead}>
+              Mark all read
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
