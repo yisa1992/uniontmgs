@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-const SPLASH_MS = 1_200; // 1.2 seconds (was 10s)
+const SPLASH_MS = 2_500; // 2.5 seconds — visible logo without slowing the app
 
 /**
  * Full-screen Union TMS logo splash on first app open / hard refresh.
- * Shows once per browser session for ~1.2s, then reveals the app.
+ * Shows once per browser session for ~2.5s, then reveals the app.
  */
 export default function SplashScreen({ children }: { children: React.ReactNode }) {
   const [show, setShow] = useState(true);
